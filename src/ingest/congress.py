@@ -69,10 +69,14 @@ def _normalize_trade_type(trade_type: object) -> str | None:
 
 
 def _looks_like_public_stock_ticker(ticker: object) -> bool:
-    """Return False for common mutual fund ticker shapes mislabeled as stock."""
+    """Return False for fund, option, preferred, and when-issued ticker shapes."""
     if not isinstance(ticker, str):
         return False
-    return re.fullmatch(r"[A-Z]{4}X", ticker) is None
+    if re.fullmatch(r"[A-Z]{4}X", ticker):
+        return False
+    if re.fullmatch(r"[A-Z]{1,6}\d{6}[CP]\d{8}", ticker):
+        return False
+    return not any(suffix in ticker for suffix in ["-P", "-R", "-WI"])
 
 
 def _build_disclosure_lookup(summaries: list[dict[str, Any]]) -> dict[str, str]:
