@@ -1,0 +1,42 @@
+[project]
+name = "congressional-alpha"
+version = "0.1.0"
+description = "A fully local pipeline for congressional trading signal research with NLP-enhanced filtering."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "duckdb",
+    "fastapi",
+    "joblib",
+    "numpy",
+    "ollama",
+    "pandas",
+    "pyarrow",
+    "python-dotenv",
+    "requests",
+    "scikit-learn",
+    "sentence-transformers",
+    "statsmodels",
+    "torch",
+    "transformers",
+    "uvicorn",
+    "yfinance",
+]
+
+[dependency-groups]
+dev = [
+    "jupyter",
+    "pytest",
+    "ruff",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
