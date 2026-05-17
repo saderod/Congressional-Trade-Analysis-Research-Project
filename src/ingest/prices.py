@@ -14,6 +14,16 @@ from src.config import RAW_DIR
 TRADES_PATH = RAW_DIR / "senate_trades" / "trades.parquet"
 PRICES_DIR = RAW_DIR / "prices"
 BATCH_SIZE = 50
+YAHOO_TICKER_ALIASES = {
+    "BRKB": "BRK-B",
+    "DISCA": "WBD",
+    "DISCK": "WBD",
+    "RDS-A": "SHEL",
+    "RDS-B": "SHEL",
+    "RDSA.AS": "SHELL.AS",
+    "SQ": "XYZ",
+    "UA-C": "UAA",
+}
 
 
 def _batched(items: list[str], batch_size: int) -> list[list[str]]:
@@ -24,6 +34,11 @@ def _batched(items: list[str], batch_size: int) -> list[list[str]]:
 def _ticker_output_path(ticker: str) -> Path:
     """Return the parquet path for a ticker's downloaded price history."""
     return PRICES_DIR / f"{ticker}.parquet"
+
+
+def _yahoo_ticker(ticker: str) -> str:
+    """Map source tickers to the Yahoo symbols needed for price downloads."""
+    return YAHOO_TICKER_ALIASES.get(ticker, ticker)
 
 
 def _normalize_price_frame(frame: pd.DataFrame, ticker: str) -> pd.DataFrame:
@@ -67,9 +82,10 @@ def fetch_prices(tickers: list[str], start: str, end: str) -> tuple[list[str], l
 
     for batch_number, batch in enumerate(_batched(universe, BATCH_SIZE), start=1):
         print(f"Downloading batch {batch_number}: {len(batch)} tickers")
+        yahoo_batch = sorted({_yahoo_ticker(ticker) for ticker in batch})
         try:
             download = yf.download(
-                tickers=batch,
+                tickers=yahoo_batch,
                 start=start,
                 end=end,
                 group_by="ticker",
@@ -83,7 +99,8 @@ def fetch_prices(tickers: list[str], start: str, end: str) -> tuple[list[str], l
             continue
 
         for ticker in batch:
-            ticker_frame = _extract_ticker_frame(download, ticker)
+            yahoo_ticker = _yahoo_ticker(ticker)
+            ticker_frame = _extract_ticker_frame(download, yahoo_ticker)
             if ticker_frame.empty or ticker_frame.dropna(how="all").empty:
                 print(f"No price data for {ticker}")
                 failed.append(ticker)
