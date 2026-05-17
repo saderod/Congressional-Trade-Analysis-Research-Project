@@ -7,7 +7,7 @@ from pathlib import Path
 import duckdb
 import pandas as pd
 
-from src.config import DUCKDB_PATH, RAW_DIR
+from src.config import DUCKDB_PATH, PROCESSED_DIR, RAW_DIR
 
 
 TRADES_PATH = RAW_DIR / "senate_trades" / "trades.parquet"
@@ -25,6 +25,9 @@ TRADE_REQUIRED_COLUMNS = [
 ]
 PRICE_COLUMNS = ["date", "ticker", "open", "high", "low", "close", "adj_close", "volume"]
 NEWS_COLUMNS = ["news_id", "ticker", "headline", "summary", "publisher", "published_at", "url", "source"]
+PROCESSED_TRADES_PATH = PROCESSED_DIR / "trades.parquet"
+PROCESSED_PRICES_PATH = PROCESSED_DIR / "prices.parquet"
+PROCESSED_NEWS_PATH = PROCESSED_DIR / "news.parquet"
 
 
 def _read_parquet_dir(directory: Path) -> pd.DataFrame:
@@ -167,27 +170,54 @@ def _print_sanity(connection: duckdb.DuckDBPyConnection) -> None:
     print(news_before_disclosure.to_string(index=False))
 
 
+def _write_cleaned_parquets(trades: pd.DataFrame, prices: pd.DataFrame, news: pd.DataFrame) -> None:
+    """Persist cleaned tables as parquet snapshots."""
+    PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
+    trades.to_parquet(PROCESSED_TRADES_PATH, index=False)
+    prices.to_parquet(PROCESSED_PRICES_PATH, index=False)
+    news.to_parquet(PROCESSED_NEWS_PATH, index=False)
+
+
+def _load_tables_and_print_sanity(
+    connection: duckdb.DuckDBPyConnection,
+    trades: pd.DataFrame,
+    prices: pd.DataFrame,
+    news: pd.DataFrame,
+) -> None:
+    """Load cleaned frames into a DuckDB connection and print sanity metrics."""
+    _write_table(connection, "trades", trades)
+    _write_table(connection, "prices", prices)
+    _write_table(connection, "news", news)
+    connection.execute(
+        """
+        CREATE OR REPLACE VIEW senator_trade_universe AS
+        SELECT DISTINCT t.*
+        FROM trades AS t
+        INNER JOIN prices AS p
+            ON p.ticker = t.ticker
+        """
+    )
+    _print_sanity(connection)
+
+
 def load_processed_layer() -> None:
     """Clean raw data and write processed DuckDB tables/views."""
     trades = clean_trades()
     prices = clean_prices()
     news = clean_news()
+    _write_cleaned_parquets(trades, prices, news)
 
     DUCKDB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with duckdb.connect(DUCKDB_PATH) as connection:
-        _write_table(connection, "trades", trades)
-        _write_table(connection, "prices", prices)
-        _write_table(connection, "news", news)
-        connection.execute(
-            """
-            CREATE OR REPLACE VIEW senator_trade_universe AS
-            SELECT DISTINCT t.*
-            FROM trades AS t
-            INNER JOIN prices AS p
-                ON p.ticker = t.ticker
-            """
-        )
-        _print_sanity(connection)
+    try:
+        with duckdb.connect(DUCKDB_PATH) as connection:
+            _load_tables_and_print_sanity(connection, trades, prices, news)
+    except duckdb.IOException as exc:
+        if "being used by another process" not in str(exc):
+            raise
+        print(f"Could not update {DUCKDB_PATH}: {exc}")
+        print("Cleaned parquet snapshots were written; running sanity checks in memory.")
+        with duckdb.connect() as connection:
+            _load_tables_and_print_sanity(connection, trades, prices, news)
 
 
 def main() -> None:

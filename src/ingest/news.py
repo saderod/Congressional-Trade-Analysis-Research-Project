@@ -17,11 +17,38 @@ from src.ingest.prices import YAHOO_TICKER_ALIASES
 TRADES_PATH = RAW_DIR / "senate_trades" / "trades.parquet"
 NEWS_DIR = RAW_DIR / "news"
 NEWS_SCHEMA = ["ticker", "headline", "summary", "publisher", "published_at", "url", "source"]
+FRESH_NEWS_GRACE_DAYS = 14
 
 
 def _ticker_output_path(ticker: str) -> Path:
     """Return the parquet path for a ticker's news headlines."""
     return NEWS_DIR / f"{ticker}.parquet"
+
+
+def _saved_news_max_published_at(ticker: str) -> pd.Timestamp | None:
+    """Return the latest saved news timestamp for a ticker, if readable."""
+    path = _ticker_output_path(ticker)
+    if not path.exists() or path.stat().st_size == 0:
+        return None
+
+    try:
+        published_at = pd.read_parquet(path, columns=["published_at"])["published_at"]
+    except (OSError, ValueError, KeyError, FileNotFoundError):
+        return None
+
+    if published_at.empty:
+        return None
+    return pd.to_datetime(published_at, utc=True, errors="coerce", format="ISO8601").max()
+
+
+def _has_fresh_saved_news_file(ticker: str) -> bool:
+    """Return True when a ticker has a recent saved Yahoo news file."""
+    max_published_at = _saved_news_max_published_at(ticker)
+    if pd.isna(max_published_at):
+        return False
+
+    cutoff = pd.Timestamp.now(tz=UTC) - pd.Timedelta(days=FRESH_NEWS_GRACE_DAYS)
+    return bool(max_published_at >= cutoff)
 
 
 def _yahoo_ticker(ticker: str) -> str:
@@ -83,17 +110,21 @@ def fetch_news_for_tickers(tickers: list[str]) -> None:
     """Fetch recent Yahoo Finance news and save one parquet per covered ticker."""
     NEWS_DIR.mkdir(parents=True, exist_ok=True)
     universe = sorted({ticker.strip().upper() for ticker in tickers if ticker and ticker.strip()})
+    fresh_saved = {ticker for ticker in universe if _has_fresh_saved_news_file(ticker)}
+    download_universe = [ticker for ticker in universe if ticker not in fresh_saved]
+    if fresh_saved:
+        print(f"Using fresh saved news files for {len(fresh_saved):,} tickers")
 
     total_headlines = 0
-    covered_tickers: set[str] = set()
+    covered_tickers: set[str] = set(fresh_saved)
     published_dates: list[pd.Timestamp] = []
 
-    for index, ticker in enumerate(universe, start=1):
+    for index, ticker in enumerate(download_universe, start=1):
         yahoo_ticker = _yahoo_ticker(ticker)
         try:
             raw_items = yf.Ticker(yahoo_ticker).get_news(count=10)
         except Exception as exc:
-            print(f"[{index}/{len(universe)}] Failed news for {ticker}: {exc}")
+            print(f"[{index}/{len(download_universe)}] Failed news for {ticker}: {exc}")
             time.sleep(0.5)
             continue
 
@@ -105,7 +136,7 @@ def fetch_news_for_tickers(tickers: list[str]) -> None:
             if row is not None
         ]
         if not rows:
-            print(f"[{index}/{len(universe)}] No news for {ticker}")
+            print(f"[{index}/{len(download_universe)}] No news for {ticker}")
             time.sleep(0.5)
             continue
 
@@ -121,7 +152,7 @@ def fetch_news_for_tickers(tickers: list[str]) -> None:
             format="ISO8601",
         ).dropna()
         published_dates.extend(published.to_list())
-        print(f"[{index}/{len(universe)}] Saved {len(frame):,} headlines for {ticker}")
+        print(f"[{index}/{len(download_universe)}] Saved {len(frame):,} headlines for {ticker}")
         time.sleep(0.5)
 
     print(f"Total headlines: {total_headlines:,}")

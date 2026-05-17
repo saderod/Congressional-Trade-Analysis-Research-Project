@@ -8,6 +8,7 @@ dependencies = [
     "duckdb",
     "fastapi",
     "joblib",
+    "lxml",
     "numpy>=2.0,<2.3",
     "ollama",
     "pandas>=2.2,<3.0",

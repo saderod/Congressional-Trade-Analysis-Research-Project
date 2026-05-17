@@ -17,6 +17,8 @@ from src.config import DUCKDB_PATH, EMBEDDINGS_DIR, EMBED_MODEL, PROCESSED_DIR
 NEWS_EMBEDDINGS_PATH = PROCESSED_DIR / "news_embeddings.parquet"
 TRADE_EMBEDDINGS_PATH = PROCESSED_DIR / "trade_context_embeddings.parquet"
 RETRIEVAL_PATH = PROCESSED_DIR / "trade_news_retrieval.parquet"
+PROCESSED_TRADES_PATH = PROCESSED_DIR / "trades.parquet"
+PROCESSED_NEWS_PATH = PROCESSED_DIR / "news.parquet"
 RETRIEVAL_COLUMNS = ["trade_id", "news_id", "ticker", "similarity", "rank"]
 
 _MODEL: SentenceTransformer | None = None
@@ -79,7 +81,13 @@ def _trade_context(row: pd.Series) -> str:
 
 
 def _load_processed_data() -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Load processed trades and news from DuckDB."""
+    """Load processed trades and news from cleaned parquet snapshots or DuckDB."""
+    if PROCESSED_TRADES_PATH.exists() and PROCESSED_NEWS_PATH.exists():
+        trades = pd.read_parquet(PROCESSED_TRADES_PATH).reset_index(drop=True)
+        trades.insert(0, "trade_id", range(1, len(trades) + 1))
+        news = pd.read_parquet(PROCESSED_NEWS_PATH).sort_values("news_id").reset_index(drop=True)
+        return trades, news
+
     if not DUCKDB_PATH.exists():
         raise FileNotFoundError(f"Missing processed DuckDB database: {DUCKDB_PATH}")
 
