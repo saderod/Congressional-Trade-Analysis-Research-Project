@@ -7,7 +7,7 @@ clean:
 	uv run python -m src.clean.transform
 
 nlp:
-	@echo "Will run embeddings, retrieval, and sentiment classification."
+	uv run python -m src.nlp.embeddings
 
 features:
 	@echo "Will build lookahead-safe trade and NLP feature tables."

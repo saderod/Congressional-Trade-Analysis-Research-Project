@@ -26,3 +26,4 @@ data/raw/**
 data/embeddings/*
 !data/embeddings/.gitkeep
 data/processed/*.duckdb
+data/processed/*.parquet
