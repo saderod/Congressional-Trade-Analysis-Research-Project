@@ -15,7 +15,7 @@ node_modules/
 .DS_Store
 .vscode/
 .idea/
-data/raw/*
+data/raw/**
 !data/raw/.gitkeep
 !data/raw/senate_trades/
 !data/raw/prices/
@@ -26,4 +26,3 @@ data/raw/*
 data/embeddings/*
 !data/embeddings/.gitkeep
 data/processed/*.duckdb
-
