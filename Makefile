@@ -4,7 +4,7 @@ ingest:
 	@echo "Will ingest senate trades, prices, and news into data/raw."
 
 clean:
-	@echo "Will clean raw parquet files and load processed tables into DuckDB."
+	uv run python -m src.clean.transform
 
 nlp:
 	@echo "Will run embeddings, retrieval, and sentiment classification."
@@ -26,4 +26,3 @@ frontend:
 
 all:
 	@echo "Will run the full pipeline from ingest through frontend."
-
