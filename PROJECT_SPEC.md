@@ -93,7 +93,7 @@ congressional-alpha/
 │   │   ├── classify_nb.py    # Naive Bayes sentiment classifier
 │   │   ├── classify_finbert.py
 │   │   ├── llm_local.py      # Ollama client
-│   │   └── router.py         # weighted NB + FinBERT ensemble with targeted Ollama checks
+│   │   └── ensemble.py       # weighted NB + FinBERT ensemble with targeted Ollama checks
 │   ├── features/
 │   │   ├── __init__.py
 │   │   └── build.py
@@ -287,7 +287,7 @@ Both free, no API key.
    - Ollama client (use the `ollama` python package or raw HTTP to `OLLAMA_HOST`)
    - `classify_local(text: str) -> {label, confidence, reasoning}` — short prompt asking for bullish/bearish/neutral + 1-sentence reasoning. Parse JSON response.
    - If parse fails or Ollama is unreachable: return `{label: "neutral", confidence: 0.5, reasoning: "fallback"}` and log the failure.
-4. `src/nlp/router.py`:
+4. `src/nlp/ensemble.py`:
    - `classify_headline(text: str) -> {label, confidence, source}`:
      - Run NB and FinBERT, combine with fixed weighted vote.
      - If ensemble confidence/margin is strong, return source=`"ensemble"`.
