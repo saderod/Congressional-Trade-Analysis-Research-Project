@@ -76,8 +76,8 @@ def classify_local(text: str) -> LLMClassification:
             options={"temperature": 0},
             format="json",
         )
-        message = response.get("message", {}) if isinstance(response, dict) else {}
-        content = message.get("content", "")
+        message = response.get("message", {}) if isinstance(response, dict) else response.message
+        content = message.get("content", "") if isinstance(message, dict) else message.content
         return _parse_response(content)
     except Exception as exc:
         print(f"Ollama classification fallback: {exc}")
