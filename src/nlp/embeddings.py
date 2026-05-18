@@ -84,7 +84,8 @@ def _load_processed_data() -> tuple[pd.DataFrame, pd.DataFrame]:
     """Load processed trades and news from cleaned parquet snapshots or DuckDB."""
     if PROCESSED_TRADES_PATH.exists() and PROCESSED_NEWS_PATH.exists():
         trades = pd.read_parquet(PROCESSED_TRADES_PATH).reset_index(drop=True)
-        trades.insert(0, "trade_id", range(1, len(trades) + 1))
+        if "trade_id" not in trades.columns:
+            trades.insert(0, "trade_id", range(1, len(trades) + 1))
         news = pd.read_parquet(PROCESSED_NEWS_PATH).sort_values("news_id").reset_index(drop=True)
         return trades, news
 
@@ -95,20 +96,18 @@ def _load_processed_data() -> tuple[pd.DataFrame, pd.DataFrame]:
         with duckdb.connect(DUCKDB_PATH, read_only=True) as connection:
             trades = connection.execute(
                 """
-                SELECT
-                    ROW_NUMBER() OVER (ORDER BY disclosure_date, transaction_date, senator, ticker) AS trade_id,
-                    *
+                SELECT *
                 FROM trades
+                ORDER BY trade_id
                 """
             ).fetchdf()
             news = connection.execute("SELECT * FROM news ORDER BY news_id").fetchdf()
     except duckdb.IOException as exc:
         print(f"Could not read DuckDB directly ({exc}); falling back to cleaned raw parquet.")
-        from src.clean.transform import clean_news, clean_trades
+        from src.clean.transform import _filter_news_to_trade_universe, clean_news, clean_trades
 
         trades = clean_trades().reset_index(drop=True)
-        trades.insert(0, "trade_id", range(1, len(trades) + 1))
-        news = clean_news()
+        news = _filter_news_to_trade_universe(clean_news(), trades)
     return trades, news
 
 

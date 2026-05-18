@@ -13,6 +13,7 @@ from src.config import DUCKDB_PATH, PROCESSED_DIR, RAW_DIR
 TRADES_PATH = RAW_DIR / "senate_trades" / "trades.parquet"
 PRICES_DIR = RAW_DIR / "prices"
 NEWS_DIR = RAW_DIR / "news"
+DISCLOSURE_START_DATE = pd.Timestamp("2025-01-01")
 TRADE_REQUIRED_COLUMNS = [
     "senator",
     "ticker",
@@ -23,6 +24,7 @@ TRADE_REQUIRED_COLUMNS = [
     "amount_range_high",
     "asset_type",
 ]
+TRADE_COLUMNS = ["trade_id"] + TRADE_REQUIRED_COLUMNS
 PRICE_COLUMNS = ["date", "ticker", "open", "high", "low", "close", "adj_close", "volume"]
 NEWS_COLUMNS = ["news_id", "ticker", "headline", "summary", "publisher", "published_at", "url", "source"]
 PROCESSED_TRADES_PATH = PROCESSED_DIR / "trades.parquet"
@@ -64,10 +66,23 @@ def clean_trades() -> pd.DataFrame:
     trades = trades.drop_duplicates().sort_values(["disclosure_date", "transaction_date", "senator"])
     dropped_duplicates = before_dedupe - len(trades)
 
+    before_scope = len(trades)
+    trades = trades.loc[trades["disclosure_date"] >= DISCLOSURE_START_DATE].copy()
+    dropped_scope = before_scope - len(trades)
+
+    trades["transaction_date"] = trades["transaction_date"].dt.date
+    trades["disclosure_date"] = trades["disclosure_date"].dt.date
+    trades = trades.reset_index(drop=True)
+    trades.insert(0, "trade_id", range(1, len(trades) + 1))
+
     print(f"Trades dropped missing required fields: {dropped_required:,}")
     print(f"Trades dropped disclosure_date < transaction_date: {dropped_violations:,}")
     print(f"Trades dropped duplicates: {dropped_duplicates:,}")
-    return trades.reset_index(drop=True)
+    print(
+        "Trades dropped outside effective universe "
+        f"(disclosure_date < {DISCLOSURE_START_DATE.date()}): {dropped_scope:,}"
+    )
+    return trades[TRADE_COLUMNS]
 
 
 def clean_prices() -> pd.DataFrame:
@@ -113,6 +128,75 @@ def _write_table(connection: duckdb.DuckDBPyConnection, name: str, frame: pd.Dat
     connection.unregister(f"{name}_df")
 
 
+def _standardize_duckdb_schema(connection: duckdb.DuckDBPyConnection) -> None:
+    """Cast processed tables to the intended durable DuckDB types."""
+    connection.execute(
+        """
+        CREATE OR REPLACE TABLE trades_standardized (
+            trade_id INTEGER PRIMARY KEY,
+            senator VARCHAR,
+            ticker VARCHAR,
+            transaction_date DATE,
+            disclosure_date DATE,
+            type VARCHAR,
+            amount_range_low BIGINT,
+            amount_range_high BIGINT,
+            asset_type VARCHAR
+        )
+        """
+    )
+    connection.execute(
+        """
+        INSERT INTO trades_standardized
+        SELECT
+            trade_id::INTEGER AS trade_id,
+            senator,
+            ticker,
+            transaction_date::DATE AS transaction_date,
+            disclosure_date::DATE AS disclosure_date,
+            type,
+            amount_range_low,
+            amount_range_high,
+            asset_type
+        FROM trades
+        ORDER BY trade_id
+        """
+    )
+    connection.execute("DROP TABLE trades")
+    connection.execute("ALTER TABLE trades_standardized RENAME TO trades")
+    connection.execute(
+        """
+        CREATE OR REPLACE TABLE prices AS
+        SELECT
+            date::DATE AS date,
+            ticker,
+            open,
+            high,
+            low,
+            close,
+            adj_close,
+            volume
+        FROM prices
+        """
+    )
+    connection.execute(
+        """
+        CREATE OR REPLACE TABLE news AS
+        SELECT
+            news_id::INTEGER AS news_id,
+            ticker,
+            headline,
+            summary,
+            publisher,
+            published_at::TIMESTAMPTZ AS published_at,
+            url,
+            source
+        FROM news
+        ORDER BY news_id
+        """
+    )
+
+
 def _print_sanity(connection: duckdb.DuckDBPyConnection) -> None:
     """Print processed-layer row counts and coverage metrics."""
     counts = connection.execute(
@@ -143,13 +227,7 @@ def _print_sanity(connection: duckdb.DuckDBPyConnection) -> None:
 
     news_before_disclosure = connection.execute(
         """
-        WITH numbered_trades AS (
-            SELECT
-                ROW_NUMBER() OVER () AS trade_id,
-                *
-            FROM trades AS t
-        ),
-        trade_news AS (
+        WITH trade_news AS (
             SELECT
                 trade_id,
                 EXISTS (
@@ -158,7 +236,7 @@ def _print_sanity(connection: duckdb.DuckDBPyConnection) -> None:
                     WHERE n.ticker = t.ticker
                         AND n.published_at < CAST(t.disclosure_date AS TIMESTAMPTZ)
                 ) AS has_pre_disclosure_news
-            FROM numbered_trades AS t
+            FROM trades AS t
         )
         SELECT
             COUNT(*) AS total_trades,
@@ -178,6 +256,15 @@ def _write_cleaned_parquets(trades: pd.DataFrame, prices: pd.DataFrame, news: pd
     news.to_parquet(PROCESSED_NEWS_PATH, index=False)
 
 
+def _filter_news_to_trade_universe(news: pd.DataFrame, trades: pd.DataFrame) -> pd.DataFrame:
+    """Keep only news for tickers in the effective trade universe."""
+    tickers = set(trades["ticker"].dropna().astype(str))
+    filtered = news.loc[news["ticker"].isin(tickers)].copy()
+    filtered = filtered.sort_values(["ticker", "published_at", "headline"]).reset_index(drop=True)
+    filtered["news_id"] = range(1, len(filtered) + 1)
+    return filtered[NEWS_COLUMNS]
+
+
 def _load_tables_and_print_sanity(
     connection: duckdb.DuckDBPyConnection,
     trades: pd.DataFrame,
@@ -188,6 +275,7 @@ def _load_tables_and_print_sanity(
     _write_table(connection, "trades", trades)
     _write_table(connection, "prices", prices)
     _write_table(connection, "news", news)
+    _standardize_duckdb_schema(connection)
     connection.execute(
         """
         CREATE OR REPLACE VIEW senator_trade_universe AS
@@ -204,7 +292,7 @@ def load_processed_layer() -> None:
     """Clean raw data and write processed DuckDB tables/views."""
     trades = clean_trades()
     prices = clean_prices()
-    news = clean_news()
+    news = _filter_news_to_trade_universe(clean_news(), trades)
     _write_cleaned_parquets(trades, prices, news)
 
     DUCKDB_PATH.parent.mkdir(parents=True, exist_ok=True)
