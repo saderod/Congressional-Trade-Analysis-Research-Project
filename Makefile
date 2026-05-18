@@ -17,7 +17,7 @@ research:
 	uv run python -m src.research.eda
 
 backtest:
-	@echo "Will run baseline and NLP-filtered strategy backtests."
+	uv run python -m src.research.backtest
 
 api:
 	@echo "Will start the FastAPI service for research outputs."
