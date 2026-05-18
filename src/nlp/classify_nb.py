@@ -19,6 +19,7 @@ PHRASEBANK_REPO = "takala/financial_phrasebank"
 PHRASEBANK_ZIP = "data/FinancialPhraseBank-v1.0.zip"
 PHRASEBANK_FILE = "Sentences_75Agree.txt"
 LABEL_MAP = {"positive": "bullish", "negative": "bearish", "neutral": "neutral"}
+LABELS = ["bearish", "neutral", "bullish"]
 
 
 class Classification(TypedDict):
@@ -97,6 +98,23 @@ def classify_nb(texts: list[str]) -> list[Classification]:
             }
         )
     return results
+
+
+def classify_nb_proba(texts: list[str]) -> list[dict[str, float]]:
+    """Return full NB class probabilities for weighted ensembling."""
+    if not texts:
+        return []
+
+    model = _model()
+    probabilities = model.predict_proba(texts)
+    classes = [str(label) for label in model.classes_]
+    rows: list[dict[str, float]] = []
+    for probability_row in probabilities:
+        row = dict.fromkeys(LABELS, 0.0)
+        for label, probability in zip(classes, probability_row, strict=True):
+            row[label] = float(probability)
+        rows.append(row)
+    return rows
 
 
 def main() -> None:

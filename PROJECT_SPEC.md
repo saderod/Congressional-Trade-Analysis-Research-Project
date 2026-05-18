@@ -93,7 +93,7 @@ congressional-alpha/
 │   │   ├── classify_nb.py    # Naive Bayes sentiment classifier
 │   │   ├── classify_finbert.py
 │   │   ├── llm_local.py      # Ollama client
-│   │   └── router.py         # picks NB → FinBERT → Ollama (3-tier cascade)
+│   │   └── router.py         # weighted NB + FinBERT ensemble with targeted Ollama checks
 │   ├── features/
 │   │   ├── __init__.py
 │   │   └── build.py
@@ -267,11 +267,11 @@ Both free, no API key.
 
 ---
 
-## PHASE 5: NLP layer — 3-tier classification cascade
+## PHASE 5: NLP layer — weighted sentiment ensemble
 
-**Goal:** Score every retrieved news headline with bullish/bearish/neutral sentiment using a cascade: Naive Bayes (fast bulk) → FinBERT (finance-tuned) → local LLM via Ollama (nuanced cases). **Fully local — no API calls.**
+**Goal:** Score retrieved news headlines with bullish/bearish/neutral sentiment using a weighted ensemble: Naive Bayes + FinBERT for every checked headline, with local LLM via Ollama only for uncertain checked headlines. **Fully local — no API calls.**
 
-**Why a cascade:** Most headlines are obvious. Spend cheap compute on those, expensive compute only on ambiguous ones. This is a real engineering pattern that demonstrates cost-aware ML system design — a quant-shop value.
+**Why an ensemble:** NB and FinBERT give complementary lightweight and finance-tuned views. Ollama is reserved for ambiguous retrieved headlines so local LLM compute is spent only on data that actually enters the trade/news analysis.
 
 **Tasks:**
 1. `src/nlp/classify_nb.py`:
@@ -289,17 +289,17 @@ Both free, no API key.
    - If parse fails or Ollama is unreachable: return `{label: "neutral", confidence: 0.5, reasoning: "fallback"}` and log the failure.
 4. `src/nlp/router.py`:
    - `classify_headline(text: str) -> {label, confidence, source}`:
-     - Run NB. If `confidence > 0.85`, return NB result, source=`"nb"`
-     - Else run FinBERT. If `confidence > 0.80`, return FinBERT, source=`"finbert"`
-     - Else run local LLM (Ollama). Return its result, source=`"ollama"` (or `"fallback_neutral"` if Ollama failed)
-   - Log which tier handled each call → save tier-usage stats to `data/results/nlp_routing.json`
-5. Apply router across all news in the universe. Persist `data/processed/news_sentiment.parquet` with `(news_id, headline, label, confidence, source)`.
+     - Run NB and FinBERT, combine with fixed weighted vote.
+     - If ensemble confidence/margin is strong, return source=`"ensemble"`.
+     - Else run local LLM (Ollama) for that checked headline only and include it in the weighted vote. Return source=`"ensemble_ollama"` (or `"ensemble_fallback"` if Ollama failed).
+   - Log ensemble/LLM usage → save stats to `data/results/nlp_routing.json`
+5. Apply the ensemble only across retrieved news headlines referenced by `trade_news_retrieval.parquet`. Persist `data/processed/news_sentiment.parquet` with `(news_id, headline, label, confidence, source)`.
 6. Update Makefile: `make nlp` runs embeddings AND classification
-7. Commit: `feat: 3-tier nlp cascade (NB → FinBERT → Ollama)`
+7. Commit: `feat: weighted nlp ensemble (NB + FinBERT + targeted Ollama)`
 
   Dependencies added: `transformers`, `torch`, `ollama`, `joblib`
 
-**Stop. Show: tier distribution (% NB / FinBERT / Ollama / fallback), 10 sample classifications. Wait for go.**
+**Stop. Show: ensemble distribution (% ensemble / Ollama-assisted / fallback), 10 sample classifications. Wait for go.**
 
 ---
 
@@ -342,7 +342,7 @@ Both free, no API key.
    - `by_senator.json`: top 20 senators by mean excess return on buys (n ≥ 10), with confidence intervals
    - `by_lag.json`: mean excess return bucketed by disclosure lag
    - `by_sentiment.json`: **the key chart** — mean 21d excess return on senator buys, bucketed by `sentiment_score_30d` quintile. This is what shows whether NLP adds info.
-   - `nlp_routing.json` (from Phase 5): tier usage distribution
+   - `nlp_routing.json` (from Phase 5): ensemble usage distribution
 2. Use statsmodels for tests
 3. Update Makefile `make research`
 4. Commit: `feat: eda including nlp-conditional return analysis`
@@ -419,13 +419,13 @@ Both free, no API key.
 **Sections (single-page app):**
 1. **Header:** title, one-line thesis, GitHub link
 2. **Overview cards:** total trades, mean buy excess return, mean sell excess return, p-value
-3. **NLP routing card:** stacked bar showing % of headlines handled by NB / FinBERT / Ollama (the "look how I engineered this" flex)
+3. **NLP ensemble card:** stacked bar showing % of checked headlines handled by base ensemble / Ollama-assisted ensemble
 4. **Sentiment-bucket bar chart:** mean 21d excess return by sentiment quintile (this is the *finding*)
 5. **Equity curve:** baseline strategy vs NLP-filtered vs SPY over test period
 6. **Backtest metrics table:** side-by-side comparison
 7. **Top senators table:** sortable
 8. **Recent trades feed:** w/ top headline + sentiment for each
-9. **Methodology section:** the lookahead handling (trades AND news), train/test split, transaction costs, NLP cascade rationale, limitations
+9. **Methodology section:** the lookahead handling (trades AND news), train/test split, transaction costs, NLP ensemble rationale, limitations
 
 **Tasks:**
 1. `lib/api.ts`: typed axios fetchers
@@ -446,8 +446,8 @@ Both free, no API key.
 1. One-line + GIF of dashboard
 2. Thesis question
 3. Key findings (3-5 brutally honest bullets — including null results if any)
-4. **Architecture diagram** (ASCII or Mermaid) showing data flow through the NLP cascade
-5. Methodology section (lookahead, train/test, costs, NLP cascade design)
+4. **Architecture diagram** (ASCII or Mermaid) showing data flow through the NLP ensemble
+5. Methodology section (lookahead, train/test, costs, NLP ensemble design)
 6. Tech stack — emphasize "fully local, $0 to run"
 7. How to run locally (numbered, `make ingest && make clean && make nlp && ...`)
 8. Repo structure
@@ -469,7 +469,7 @@ Both free, no API key.
 
 - Do not skip the lookahead enforcement on news features. Easy to get wrong, fatal if you do.
 - Do not add an Anthropic/OpenAI API fallback. This project is fully local — that is a feature.
-- Do not over-engineer the NLP cascade thresholds in v1. Hard-coded thresholds (0.85, 0.80) are fine. Document that they're heuristic.
+- Do not over-engineer the NLP ensemble thresholds in v1. Hard-coded weights and uncertainty thresholds are fine. Document that they're heuristic.
 - Do not train FinBERT from scratch or fine-tune it. Use the pretrained checkpoint as-is.
 - Do not add user auth, real-time streaming, Docker, CI/CD, or deployment. Out of scope.
 - Do not produce a 30-strategy comparison. Two strategies (baseline vs NLP-filtered), done well.
@@ -481,7 +481,7 @@ Both free, no API key.
 
 A senior quant engineer reviewing the repo should think:
 1. "This person handled lookahead bias on BOTH the trade and the news correctly."
-2. "The NLP cascade is a real engineering pattern, not a buzzword salad."
+2. "The NLP ensemble is a real engineering pattern, not a buzzword salad."
 3. "Fully local — they could run this airgapped, that's a real consideration for buy-side."
 4. "The methodology section is honest about limitations."
 5. "The dashboard is clean and the findings are clearly communicated."

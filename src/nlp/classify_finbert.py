@@ -12,6 +12,7 @@ from src.config import FINBERT_MODEL
 
 BATCH_SIZE = 32
 LABEL_MAP = {"positive": "bullish", "negative": "bearish", "neutral": "neutral"}
+LABELS = ["bearish", "neutral", "bullish"]
 
 _TOKENIZER: AutoTokenizer | None = None
 _MODEL: AutoModelForSequenceClassification | None = None
@@ -68,4 +69,30 @@ def classify_finbert(texts: list[str]) -> list[Classification]:
                         "confidence": float(confidence),
                     }
                 )
+    return results
+
+
+def classify_finbert_proba(texts: list[str]) -> list[dict[str, float]]:
+    """Return full FinBERT class probabilities for weighted ensembling."""
+    if not texts:
+        return []
+
+    tokenizer, model = _load_model()
+    results: list[dict[str, float]] = []
+    with torch.inference_mode():
+        for start in range(0, len(texts), BATCH_SIZE):
+            batch = texts[start : start + BATCH_SIZE]
+            inputs = tokenizer(
+                batch,
+                padding=True,
+                truncation=True,
+                max_length=128,
+                return_tensors="pt",
+            )
+            probabilities = torch.softmax(model(**inputs).logits, dim=-1)
+            for probability_row in probabilities.tolist():
+                row = dict.fromkeys(LABELS, 0.0)
+                for index, probability in enumerate(probability_row):
+                    row[_label_from_model(model, index)] = float(probability)
+                results.append(row)
     return results
