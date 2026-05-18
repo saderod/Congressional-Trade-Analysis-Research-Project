@@ -158,7 +158,9 @@ def find_similar_news(trade_row: pd.Series, news_df: pd.DataFrame, k: int = 5) -
     return candidates.sort_values("similarity", ascending=False).head(k)[["news_id", "similarity"]]
 
 
-def _build_retrieval(trades: pd.DataFrame, news: pd.DataFrame, k: int = 5) -> tuple[pd.DataFrame, float]:
+def _build_retrieval(
+    trades: pd.DataFrame, news: pd.DataFrame, k: int = 5
+) -> tuple[pd.DataFrame, float]:
     """Build top-k news retrieval rows for each trade."""
     retrieval_rows: list[dict[str, Any]] = []
     candidate_counts: list[int] = []
@@ -200,7 +202,9 @@ def run_embeddings_pipeline() -> None:
     news = _prepare_news(news)
 
     news_embedding_frame = _embedding_frame(news["news_id"], news["text"].tolist(), "news_id")
-    trade_embedding_frame = _embedding_frame(trades["trade_id"], trades["context"].tolist(), "trade_id")
+    trade_embedding_frame = _embedding_frame(
+        trades["trade_id"], trades["context"].tolist(), "trade_id"
+    )
     news_embedding_frame.to_parquet(NEWS_EMBEDDINGS_PATH, index=False)
     trade_embedding_frame.to_parquet(TRADE_EMBEDDINGS_PATH, index=False)
 

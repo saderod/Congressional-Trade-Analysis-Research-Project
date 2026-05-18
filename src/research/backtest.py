@@ -139,7 +139,9 @@ def run_strategy(
     }
 
 
-def run_spy(prices: pd.DataFrame, *, start_date: pd.Timestamp, end_date: pd.Timestamp) -> dict[str, Any]:
+def run_spy(
+    prices: pd.DataFrame, *, start_date: pd.Timestamp, end_date: pd.Timestamp
+) -> dict[str, Any]:
     """Run a buy-and-hold SPY benchmark over the same test calendar."""
     spy = prices.loc[prices["ticker"].eq("SPY")].copy()
     spy["date"] = pd.to_datetime(spy["date"])
@@ -148,13 +150,19 @@ def run_spy(prices: pd.DataFrame, *, start_date: pd.Timestamp, end_date: pd.Time
         equity_curve = pd.DataFrame(
             [{"date": start_date.date().isoformat(), "equity": INITIAL_CAPITAL}]
         )
-        return {"equity_curve": equity_curve.to_dict(orient="records"), "metrics": _metrics(equity_curve)}
+        return {
+            "equity_curve": equity_curve.to_dict(orient="records"),
+            "metrics": _metrics(equity_curve),
+        }
 
     first_close = float(spy.iloc[0]["close"])
     spy["equity"] = INITIAL_CAPITAL * spy["close"].astype(float) / first_close
     equity_curve = spy[["date", "equity"]].copy()
     equity_curve["date"] = equity_curve["date"].dt.date.astype(str)
-    return {"equity_curve": equity_curve.to_dict(orient="records"), "metrics": _metrics(equity_curve)}
+    return {
+        "equity_curve": equity_curve.to_dict(orient="records"),
+        "metrics": _metrics(equity_curve),
+    }
 
 
 def _metrics(equity_curve: pd.DataFrame, trades: pd.DataFrame | None = None) -> dict[str, Any]:

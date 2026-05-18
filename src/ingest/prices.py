@@ -150,7 +150,9 @@ def fetch_prices(tickers: list[str], start: str, end: str) -> tuple[list[str], l
         universe.append("SPY")
         universe.sort()
 
-    successful: set[str] = {ticker for ticker in universe if _has_fresh_saved_price_file(ticker, end)}
+    successful: set[str] = {
+        ticker for ticker in universe if _has_fresh_saved_price_file(ticker, end)
+    }
     failed: set[str] = set()
     download_universe = [ticker for ticker in universe if ticker not in successful]
     if successful:

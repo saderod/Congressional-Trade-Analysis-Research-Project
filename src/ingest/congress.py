@@ -225,10 +225,10 @@ def _normalize_frame(frame: pd.DataFrame) -> pd.DataFrame:
     public_stock_mask = frame["ticker"].apply(_looks_like_public_stock_ticker)
     output = frame.loc[stock_mask & action_mask & ticker_mask & public_stock_mask].copy()
 
-    output = output[
-        REQUIRED_COLUMNS + ["ptr_link", "source"]
-    ].drop_duplicates()
-    return output.sort_values(["disclosure_date", "transaction_date", "senator"]).reset_index(drop=True)
+    output = output[REQUIRED_COLUMNS + ["ptr_link", "source"]].drop_duplicates()
+    return output.sort_values(["disclosure_date", "transaction_date", "senator"]).reset_index(
+        drop=True
+    )
 
 
 def fetch_senate_trades() -> pd.DataFrame:

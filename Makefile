@@ -1,7 +1,9 @@
 .PHONY: ingest clean nlp features research backtest api frontend all
 
 ingest:
-	@echo "Will ingest senate trades, prices, and news into data/raw."
+	uv run python -m src.ingest.congress
+	uv run python -m src.ingest.prices
+	uv run python -m src.ingest.news
 
 clean:
 	uv run python -m src.clean.transform
@@ -26,4 +28,9 @@ frontend:
 	pnpm --dir frontend dev --host 127.0.0.1 --port 5173
 
 all:
-	@echo "Will run the full pipeline from ingest through frontend."
+	$(MAKE) ingest
+	$(MAKE) clean
+	$(MAKE) nlp
+	$(MAKE) features
+	$(MAKE) research
+	$(MAKE) backtest

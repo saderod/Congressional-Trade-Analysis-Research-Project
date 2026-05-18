@@ -260,7 +260,9 @@ def run_classification_pipeline() -> pd.DataFrame:
         checked_news=len(checked_news),
         total_news=len(news),
         retrieval_rows=len(retrieval),
-        llm_elapsed_seconds=float(sentiment["llm_elapsed_seconds"].sum()) if not sentiment.empty else 0.0,
+        llm_elapsed_seconds=float(sentiment["llm_elapsed_seconds"].sum())
+        if not sentiment.empty
+        else 0.0,
     )
 
     print(f"News sentiment rows: {len(sentiment):,} -> {NEWS_SENTIMENT_PATH}")

@@ -93,7 +93,9 @@ def _normalize_news_item(item: dict[str, Any], ticker: str) -> dict[str, Any] | 
         or _nested_get(content, ["provider", "displayName"])
     )
     url = item.get("link") or item.get("url") or _nested_get(content, ["canonicalUrl", "url"])
-    raw_published_at = item.get("providerPublishTime") or content.get("pubDate") or item.get("pubDate")
+    raw_published_at = (
+        item.get("providerPublishTime") or content.get("pubDate") or item.get("pubDate")
+    )
 
     return {
         "ticker": ticker,

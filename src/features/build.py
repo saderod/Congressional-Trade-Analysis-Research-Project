@@ -21,9 +21,7 @@ def _signal_frame(trades: pd.DataFrame) -> pd.DataFrame:
     frame["disclosure_date"] = pd.to_datetime(frame["disclosure_date"])
     frame["signal_date"] = frame["disclosure_date"] + BDay(1)
     frame["news_cutoff_date"] = frame["signal_date"] - BDay(1)
-    frame["disclosure_lag_days"] = (
-        frame["disclosure_date"] - frame["transaction_date"]
-    ).dt.days
+    frame["disclosure_lag_days"] = (frame["disclosure_date"] - frame["transaction_date"]).dt.days
     frame["is_buy"] = frame["type"].eq("buy")
     return frame
 
@@ -36,9 +34,7 @@ def _price_features(prices: pd.DataFrame) -> pd.DataFrame:
     grouped = frame.groupby("ticker", group_keys=False)
     for horizon in [5, 21, 63]:
         frame[f"fwd_close_{horizon}d"] = grouped["close"].shift(-horizon)
-        frame[f"fwd_return_{horizon}d"] = (
-            frame[f"fwd_close_{horizon}d"] / frame["close"] - 1.0
-        )
+        frame[f"fwd_return_{horizon}d"] = frame[f"fwd_close_{horizon}d"] / frame["close"] - 1.0
 
     return frame[
         [
@@ -278,8 +274,12 @@ def _print_summary(features: pd.DataFrame) -> None:
     with_entry = int(features["entry_price"].notna().sum())
     print(f"Feature rows: {total:,} -> {FEATURES_PATH}")
     print(f"Entry price coverage: {with_entry:,}/{total:,} ({with_entry / total:.2%})")
-    print(f"Trades with top retrieved NLP feature: {with_top_news:,}/{total:,} ({with_top_news / total:.2%})")
-    print(f"Trades with 30d sentiment news: {with_30d_news:,}/{total:,} ({with_30d_news / total:.2%})")
+    print(
+        f"Trades with top retrieved NLP feature: {with_top_news:,}/{total:,} ({with_top_news / total:.2%})"
+    )
+    print(
+        f"Trades with 30d sentiment news: {with_30d_news:,}/{total:,} ({with_30d_news / total:.2%})"
+    )
     summary_columns = [
         "disclosure_lag_days",
         "news_count_30d",

@@ -26,7 +26,16 @@ TRADE_REQUIRED_COLUMNS = [
 ]
 TRADE_COLUMNS = ["trade_id"] + TRADE_REQUIRED_COLUMNS
 PRICE_COLUMNS = ["date", "ticker", "open", "high", "low", "close", "adj_close", "volume"]
-NEWS_COLUMNS = ["news_id", "ticker", "headline", "summary", "publisher", "published_at", "url", "source"]
+NEWS_COLUMNS = [
+    "news_id",
+    "ticker",
+    "headline",
+    "summary",
+    "publisher",
+    "published_at",
+    "url",
+    "source",
+]
 PROCESSED_TRADES_PATH = PROCESSED_DIR / "trades.parquet"
 PROCESSED_PRICES_PATH = PROCESSED_DIR / "prices.parquet"
 PROCESSED_NEWS_PATH = PROCESSED_DIR / "news.parquet"
@@ -63,7 +72,9 @@ def clean_trades() -> pd.DataFrame:
     dropped_violations = before_violations - len(trades)
 
     before_dedupe = len(trades)
-    trades = trades.drop_duplicates().sort_values(["disclosure_date", "transaction_date", "senator"])
+    trades = trades.drop_duplicates().sort_values(
+        ["disclosure_date", "transaction_date", "senator"]
+    )
     dropped_duplicates = before_dedupe - len(trades)
 
     before_scope = len(trades)

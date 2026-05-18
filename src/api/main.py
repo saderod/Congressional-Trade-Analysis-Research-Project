@@ -85,7 +85,9 @@ def recent_trades(n: int = Query(default=50, ge=1, le=500)) -> list[dict[str, An
     features = _read_features().copy()
     if RETRIEVAL_PATH.exists() and NEWS_PATH.exists():
         retrieval = pd.read_parquet(RETRIEVAL_PATH)
-        news = pd.read_parquet(NEWS_PATH, columns=["news_id", "headline", "published_at", "publisher"])
+        news = pd.read_parquet(
+            NEWS_PATH, columns=["news_id", "headline", "published_at", "publisher"]
+        )
         top_news = (
             retrieval.loc[retrieval["rank"] == 1, ["trade_id", "news_id"]]
             .merge(news, on="news_id", how="left")
@@ -105,7 +107,9 @@ def recent_trades(n: int = Query(default=50, ge=1, le=500)) -> list[dict[str, An
 
     features["disclosure_date"] = pd.to_datetime(features["disclosure_date"], errors="coerce")
     features["signal_date"] = pd.to_datetime(features["signal_date"], errors="coerce")
-    features["top_news_published_at"] = pd.to_datetime(features["top_news_published_at"], errors="coerce")
+    features["top_news_published_at"] = pd.to_datetime(
+        features["top_news_published_at"], errors="coerce"
+    )
     columns = [
         "trade_id",
         "senator",
@@ -128,5 +132,7 @@ def recent_trades(n: int = Query(default=50, ge=1, le=500)) -> list[dict[str, An
     recent = recent[columns]
     for column in ["disclosure_date", "signal_date"]:
         recent[column] = recent[column].dt.date.astype(str)
-    recent["top_news_published_at"] = recent["top_news_published_at"].dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+    recent["top_news_published_at"] = recent["top_news_published_at"].dt.strftime(
+        "%Y-%m-%dT%H:%M:%SZ"
+    )
     return recent.where(pd.notna(recent), None).to_dict(orient="records")

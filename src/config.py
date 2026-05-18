@@ -14,4 +14,3 @@ DUCKDB_PATH = PROCESSED_DIR / "db.duckdb"
 EMBED_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 FINBERT_MODEL = "ProsusAI/finbert"
 OLLAMA_MODEL = "llama3.1:8b"
-
