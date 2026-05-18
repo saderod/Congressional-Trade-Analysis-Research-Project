@@ -20,7 +20,7 @@ backtest:
 	uv run python -m src.research.backtest
 
 api:
-	@echo "Will start the FastAPI service for research outputs."
+	uv run uvicorn src.api.main:app --reload --host 127.0.0.1 --port 8000
 
 frontend:
 	@echo "Will start the React frontend dashboard."
