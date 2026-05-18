@@ -23,7 +23,7 @@ api:
 	uv run uvicorn src.api.main:app --reload --host 127.0.0.1 --port 8000
 
 frontend:
-	@echo "Will start the React frontend dashboard."
+	pnpm --dir frontend dev --host 127.0.0.1 --port 5173
 
 all:
 	@echo "Will run the full pipeline from ingest through frontend."

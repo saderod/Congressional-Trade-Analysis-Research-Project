@@ -15,12 +15,14 @@ from src.config import PROCESSED_DIR, RESULTS_DIR
 
 EDA_DIR = RESULTS_DIR / "eda"
 FEATURES_PATH = PROCESSED_DIR / "features.parquet"
+RETRIEVAL_PATH = PROCESSED_DIR / "trade_news_retrieval.parquet"
+NEWS_PATH = PROCESSED_DIR / "news.parquet"
 
 
 app = FastAPI(title="congressional-alpha")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -81,8 +83,29 @@ def backtest() -> Any:
 def recent_trades(n: int = Query(default=50, ge=1, le=500)) -> list[dict[str, Any]]:
     """Return recent trades with engineered NLP features."""
     features = _read_features().copy()
+    if RETRIEVAL_PATH.exists() and NEWS_PATH.exists():
+        retrieval = pd.read_parquet(RETRIEVAL_PATH)
+        news = pd.read_parquet(NEWS_PATH, columns=["news_id", "headline", "published_at", "publisher"])
+        top_news = (
+            retrieval.loc[retrieval["rank"] == 1, ["trade_id", "news_id"]]
+            .merge(news, on="news_id", how="left")
+            .rename(
+                columns={
+                    "headline": "top_news_headline",
+                    "published_at": "top_news_published_at",
+                    "publisher": "top_news_publisher",
+                }
+            )
+        )
+        features = features.merge(top_news, on="trade_id", how="left")
+    else:
+        features["top_news_headline"] = None
+        features["top_news_published_at"] = None
+        features["top_news_publisher"] = None
+
     features["disclosure_date"] = pd.to_datetime(features["disclosure_date"], errors="coerce")
     features["signal_date"] = pd.to_datetime(features["signal_date"], errors="coerce")
+    features["top_news_published_at"] = pd.to_datetime(features["top_news_published_at"], errors="coerce")
     columns = [
         "trade_id",
         "senator",
@@ -97,9 +120,13 @@ def recent_trades(n: int = Query(default=50, ge=1, le=500)) -> list[dict[str, An
         "sentiment_score_30d",
         "top_news_similarity",
         "top_news_sentiment",
+        "top_news_headline",
+        "top_news_published_at",
+        "top_news_publisher",
     ]
     recent = features.sort_values(["disclosure_date", "trade_id"], ascending=[False, False]).head(n)
     recent = recent[columns]
     for column in ["disclosure_date", "signal_date"]:
         recent[column] = recent[column].dt.date.astype(str)
+    recent["top_news_published_at"] = recent["top_news_published_at"].dt.strftime("%Y-%m-%dT%H:%M:%SZ")
     return recent.where(pd.notna(recent), None).to_dict(orient="records")
