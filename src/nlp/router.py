@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import time
 from collections import Counter
 from typing import TypedDict
 
@@ -11,7 +12,7 @@ import pandas as pd
 from src.config import PROCESSED_DIR, RESULTS_DIR
 from src.nlp.classify_finbert import classify_finbert_proba
 from src.nlp.classify_nb import classify_nb_proba, train_nb
-from src.nlp.llm_local import classify_local
+from src.nlp.llm_local import OLLAMA_REQUEST_TIMEOUT_SECONDS, classify_local
 
 
 LABELS = ["bearish", "neutral", "bullish"]
@@ -20,6 +21,8 @@ FINBERT_WEIGHT = 0.65
 LLM_WEIGHT = 0.75
 ENSEMBLE_CONFIDENCE_THRESHOLD = 0.70
 ENSEMBLE_MARGIN_THRESHOLD = 0.20
+LLM_TOTAL_BUDGET_SECONDS = 55.0
+LLM_MIN_REMAINING_SECONDS = 1.0
 NEWS_PATH = PROCESSED_DIR / "news.parquet"
 RETRIEVAL_PATH = PROCESSED_DIR / "trade_news_retrieval.parquet"
 NEWS_SENTIMENT_PATH = PROCESSED_DIR / "news_sentiment.parquet"
@@ -36,6 +39,7 @@ SENTIMENT_COLUMNS = [
     "finbert_confidence",
     "llm_label",
     "llm_confidence",
+    "llm_elapsed_seconds",
 ]
 
 
@@ -85,6 +89,16 @@ def _needs_llm(confidence: float, margin: float) -> bool:
     return confidence < ENSEMBLE_CONFIDENCE_THRESHOLD or margin < ENSEMBLE_MARGIN_THRESHOLD
 
 
+def _remaining_llm_budget(started_at: float) -> float:
+    """Return the remaining wall-clock budget for Ollama calls."""
+    return max(0.0, LLM_TOTAL_BUDGET_SECONDS - (time.monotonic() - started_at))
+
+
+def _llm_timeout_for_remaining_budget(remaining_seconds: float) -> float:
+    """Choose a per-call timeout that cannot exceed the remaining total budget."""
+    return max(LLM_MIN_REMAINING_SECONDS, min(OLLAMA_REQUEST_TIMEOUT_SECONDS, remaining_seconds))
+
+
 def classify_headline(text: str) -> EnsembleClassification:
     """Classify one headline with a weighted NB + FinBERT ensemble and optional Ollama."""
     nb_probabilities = classify_nb_proba([text])[0]
@@ -97,7 +111,7 @@ def classify_headline(text: str) -> EnsembleClassification:
     if not _needs_llm(confidence, margin):
         return {"label": label, "confidence": confidence, "source": "ensemble"}
 
-    llm_result = classify_local(text)
+    llm_result = classify_local(text, timeout_seconds=OLLAMA_REQUEST_TIMEOUT_SECONDS)
     if llm_result["reasoning"] == "fallback":
         return {"label": label, "confidence": confidence, "source": "ensemble_fallback"}
 
@@ -129,6 +143,7 @@ def _write_ensemble_stats(
     checked_news: int,
     total_news: int,
     retrieval_rows: int,
+    llm_elapsed_seconds: float,
 ) -> dict[str, object]:
     """Persist ensemble usage counts and percentages."""
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -148,7 +163,10 @@ def _write_ensemble_stats(
         "thresholds": {
             "ensemble_confidence": ENSEMBLE_CONFIDENCE_THRESHOLD,
             "ensemble_margin": ENSEMBLE_MARGIN_THRESHOLD,
+            "llm_total_budget_seconds": LLM_TOTAL_BUDGET_SECONDS,
+            "llm_per_call_timeout_seconds": OLLAMA_REQUEST_TIMEOUT_SECONDS,
         },
+        "llm_elapsed_seconds": round(llm_elapsed_seconds, 2),
         "counts": dict(sorted(counts.items())),
         "percentages": {
             source: round((count / total) * 100, 2) if total else 0.0
@@ -165,6 +183,7 @@ def classify_news(news: pd.DataFrame) -> pd.DataFrame:
     nb_rows = classify_nb_proba(headlines)
     finbert_rows = classify_finbert_proba(headlines)
     output_rows: list[dict[str, object]] = []
+    llm_started_at = time.monotonic()
 
     for row, nb_probabilities, finbert_probabilities in zip(
         news.itertuples(index=False),
@@ -180,20 +199,30 @@ def classify_news(news: pd.DataFrame) -> pd.DataFrame:
         source = "ensemble"
         llm_label = ""
         llm_confidence = 0.0
+        llm_elapsed_seconds = 0.0
 
         if _needs_llm(confidence, margin):
-            llm_result = classify_local(str(row.headline))
-            llm_label = llm_result["label"]
-            llm_confidence = llm_result["confidence"]
-            if llm_result["reasoning"] == "fallback":
-                source = "ensemble_fallback"
+            remaining_budget = _remaining_llm_budget(llm_started_at)
+            if remaining_budget < LLM_MIN_REMAINING_SECONDS:
+                source = "ensemble_llm_budget_exhausted"
             else:
-                source = "ensemble_ollama"
-                scores = _weighted_scores(
-                    (scores, NB_WEIGHT + FINBERT_WEIGHT),
-                    (_llm_probabilities(llm_label, llm_confidence), LLM_WEIGHT),
+                llm_call_started_at = time.monotonic()
+                llm_result = classify_local(
+                    str(row.headline),
+                    timeout_seconds=_llm_timeout_for_remaining_budget(remaining_budget),
                 )
-                label, confidence, _ = _top_label(scores)
+                llm_elapsed_seconds = time.monotonic() - llm_call_started_at
+                llm_label = llm_result["label"]
+                llm_confidence = llm_result["confidence"]
+                if llm_result["reasoning"] == "fallback":
+                    source = "ensemble_fallback"
+                else:
+                    source = "ensemble_ollama"
+                    scores = _weighted_scores(
+                        (scores, NB_WEIGHT + FINBERT_WEIGHT),
+                        (_llm_probabilities(llm_label, llm_confidence), LLM_WEIGHT),
+                    )
+                    label, confidence, _ = _top_label(scores)
 
         nb_label, nb_confidence = _label_confidence(nb_probabilities)
         finbert_label, finbert_confidence = _label_confidence(finbert_probabilities)
@@ -210,6 +239,7 @@ def classify_news(news: pd.DataFrame) -> pd.DataFrame:
                 "finbert_confidence": finbert_confidence,
                 "llm_label": llm_label,
                 "llm_confidence": llm_confidence,
+                "llm_elapsed_seconds": llm_elapsed_seconds,
             }
         )
 
@@ -230,6 +260,7 @@ def run_classification_pipeline() -> pd.DataFrame:
         checked_news=len(checked_news),
         total_news=len(news),
         retrieval_rows=len(retrieval),
+        llm_elapsed_seconds=float(sentiment["llm_elapsed_seconds"].sum()) if not sentiment.empty else 0.0,
     )
 
     print(f"News sentiment rows: {len(sentiment):,} -> {NEWS_SENTIMENT_PATH}")

@@ -11,6 +11,8 @@ from src.config import OLLAMA_MODEL
 
 
 VALID_LABELS = {"bullish", "bearish", "neutral"}
+OLLAMA_AVAILABILITY_TIMEOUT_SECONDS = 5.0
+OLLAMA_REQUEST_TIMEOUT_SECONDS = 10.0
 _OLLAMA_AVAILABLE: bool | None = None
 
 
@@ -27,14 +29,19 @@ def _fallback(reason: str) -> LLMClassification:
     return {"label": "neutral", "confidence": 0.5, "reasoning": reason}
 
 
-def _is_ollama_available() -> bool:
+def _client(timeout_seconds: float = OLLAMA_REQUEST_TIMEOUT_SECONDS) -> ollama.Client:
+    """Build an Ollama client with a bounded HTTP timeout."""
+    return ollama.Client(timeout=timeout_seconds)
+
+
+def _is_ollama_available(timeout_seconds: float = OLLAMA_AVAILABILITY_TIMEOUT_SECONDS) -> bool:
     """Check Ollama availability once per process."""
     global _OLLAMA_AVAILABLE
     if _OLLAMA_AVAILABLE is not None:
         return _OLLAMA_AVAILABLE
 
     try:
-        ollama.list()
+        _client(timeout_seconds).list()
         _OLLAMA_AVAILABLE = True
     except Exception as exc:
         print(f"Ollama unavailable; using neutral fallback for LLM-routed items: {exc}")
@@ -58,7 +65,10 @@ def _parse_response(content: str) -> LLMClassification:
     return {"label": label, "confidence": confidence, "reasoning": reasoning}
 
 
-def classify_local(text: str) -> LLMClassification:
+def classify_local(
+    text: str,
+    timeout_seconds: float = OLLAMA_REQUEST_TIMEOUT_SECONDS,
+) -> LLMClassification:
     """Classify one headline with a local Ollama model."""
     if not _is_ollama_available():
         return _fallback("fallback")
@@ -70,7 +80,7 @@ def classify_local(text: str) -> LLMClassification:
         f"Headline: {text}"
     )
     try:
-        response = ollama.chat(
+        response = _client(timeout_seconds).chat(
             model=OLLAMA_MODEL,
             messages=[{"role": "user", "content": prompt}],
             options={"temperature": 0},
