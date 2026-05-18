@@ -15,6 +15,7 @@ node_modules/
 .DS_Store
 .vscode/
 .idea/
+*.zip
 data/raw/**
 !data/raw/.gitkeep
 !data/raw/senate_trades/
@@ -31,3 +32,4 @@ data/processed/*.parquet
 data/processed/*.joblib
 data/results/*.json
 data/results/eda/*.json
+!data/results/eda/.gitkeep
