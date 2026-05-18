@@ -11,7 +11,7 @@ nlp:
 	uv run python -m src.nlp.ensemble
 
 features:
-	@echo "Will build lookahead-safe trade and NLP feature tables."
+	uv run python -m src.features.build
 
 research:
 	@echo "Will generate EDA outputs and statistical summaries."
