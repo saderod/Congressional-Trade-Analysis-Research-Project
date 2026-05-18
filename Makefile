@@ -14,7 +14,7 @@ features:
 	uv run python -m src.features.build
 
 research:
-	@echo "Will generate EDA outputs and statistical summaries."
+	uv run python -m src.research.eda
 
 backtest:
 	@echo "Will run baseline and NLP-filtered strategy backtests."

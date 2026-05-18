@@ -30,3 +30,4 @@ data/processed/*.duckdb.wal
 data/processed/*.parquet
 data/processed/*.joblib
 data/results/*.json
+data/results/eda/*.json
