@@ -27,3 +27,5 @@ data/embeddings/*
 !data/embeddings/.gitkeep
 data/processed/*.duckdb
 data/processed/*.parquet
+data/processed/*.joblib
+data/results/*.json

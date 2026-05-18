@@ -8,6 +8,7 @@ clean:
 
 nlp:
 	uv run python -m src.nlp.embeddings
+	uv run python -m src.nlp.router
 
 features:
 	@echo "Will build lookahead-safe trade and NLP feature tables."
