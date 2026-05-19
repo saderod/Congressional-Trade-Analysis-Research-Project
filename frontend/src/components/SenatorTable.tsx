@@ -17,6 +17,7 @@ export function SenatorTable() {
   const { data, loading, error } = useApi(fetchSenators);
   const [sortKey, setSortKey] = useState<SortKey>("mean_excess_return_21d");
   const [descending, setDescending] = useState(true);
+  const [expanded, setExpanded] = useState(false);
 
   const sortedRows = useMemo(() => {
     return [...(data ?? [])].sort((a, b) => compareRows(a, b, sortKey, descending));
@@ -36,14 +37,25 @@ export function SenatorTable() {
 
   return (
     <section className="rounded-md border border-slate-200 bg-white p-6">
-      <h2 className="text-lg font-semibold text-slate-950">Top Senators</h2>
-      <p className="mt-1 text-sm leading-6 text-slate-500">
-        This summarizes how each senator's reported trades performed compared with the market about one month later.
-      </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold text-slate-950">Top Senators</h2>
+          <p className="mt-1 text-sm leading-6 text-slate-500">
+            This summarizes how each senator's reported trades performed compared with the market about one month later.
+          </p>
+        </div>
+        <button
+          className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:border-blue-300 hover:text-blue-700"
+          onClick={() => setExpanded((current) => !current)}
+          type="button"
+        >
+          {expanded ? "Collapse" : "Expand"}
+        </button>
+      </div>
 
-      <div className="mt-5 overflow-x-auto">
+      <div className={`mt-5 overflow-auto rounded-md border border-slate-100 ${expanded ? "max-h-[34rem]" : "max-h-56"}`}>
         <table className="min-w-full text-left text-sm">
-          <thead className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
+          <thead className="sticky top-0 z-10 border-b border-slate-200 bg-white text-xs uppercase tracking-wide text-slate-500">
             <tr>
               <SortableHeader label="Senator" accent={columnAccents.senator} active={sortKey === "senator"} descending={descending} onClick={() => setSort("senator")} />
               <SortableHeader label="Trades" accent={columnAccents.trades} active={sortKey === "n"} descending={descending} onClick={() => setSort("n")} />
