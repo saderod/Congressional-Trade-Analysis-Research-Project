@@ -20,17 +20,45 @@ EDA_DIR = RESULTS_DIR / "eda"
 FEATURES_PATH = PROCESSED_DIR / "features.parquet"
 RETRIEVAL_PATH = PROCESSED_DIR / "trade_news_retrieval.parquet"
 NEWS_PATH = PROCESSED_DIR / "news.parquet"
-RERUN_MODULES = [
-    ("Scoring related news headlines", "src.nlp.ensemble"),
-    ("Rebuilding trade features", "src.features.build"),
-    ("Refreshing research summaries", "src.research.eda"),
-    ("Refreshing backtest results", "src.research.backtest"),
+RERUN_STEPS = [
+    {
+        "progress": 10,
+        "step": "Reading local data",
+        "activity": "Reading saved congressional trades, stock prices, and news from the local data folder.",
+        "module": None,
+    },
+    {
+        "progress": 30,
+        "step": "Analyzing news tone",
+        "activity": "Scoring related headlines with Naive Bayes, FinBERT, and Ollama.",
+        "module": "src.nlp.ensemble",
+    },
+    {
+        "progress": 55,
+        "step": "Rebuilding trade features",
+        "activity": "Matching trades, prices, and news into the table used by the dashboard.",
+        "module": "src.features.build",
+    },
+    {
+        "progress": 75,
+        "step": "Updating summaries",
+        "activity": "Refreshing the overview cards, senator table, and news-tone summary.",
+        "module": "src.research.eda",
+    },
+    {
+        "progress": 90,
+        "step": "Updating portfolio simulation",
+        "activity": "Re-running the simulated portfolio and backtest metrics.",
+        "module": "src.research.backtest",
+    },
 ]
 _RERUN_LOCK = threading.Lock()
 _RERUN_STATUS: dict[str, Any] = {
     "running": False,
     "step": "Idle",
     "message": "Ready",
+    "activity": "Ready to refresh the dashboard analysis.",
+    "progress": 0,
     "started_at": None,
     "finished_at": None,
     "success": None,
@@ -77,17 +105,29 @@ def _run_analysis_pipeline() -> None:
     """Run the local analysis refresh pipeline in the background."""
     _set_rerun_status(
         running=True,
-        step=RERUN_MODULES[0][0],
+        step=RERUN_STEPS[0]["step"],
         message="Starting rerun...",
+        activity=RERUN_STEPS[0]["activity"],
+        progress=RERUN_STEPS[0]["progress"],
         started_at=pd.Timestamp.utcnow().isoformat(),
         finished_at=None,
         success=None,
     )
     try:
-        for label, module in RERUN_MODULES:
-            _set_rerun_status(step=label, message=label)
+        for rerun_step in RERUN_STEPS:
+            label = str(rerun_step["step"])
+            activity = str(rerun_step["activity"])
+            module = rerun_step["module"]
+            _set_rerun_status(
+                step=label,
+                message=activity,
+                activity=activity,
+                progress=rerun_step["progress"],
+            )
+            if module is None:
+                continue
             result = subprocess.run(
-                [sys.executable, "-m", module],
+                [sys.executable, "-m", str(module)],
                 cwd=PROJECT_ROOT,
                 capture_output=True,
                 text=True,
@@ -100,7 +140,9 @@ def _run_analysis_pipeline() -> None:
         _set_rerun_status(
             running=False,
             step="Complete",
-            message="Analysis refreshed successfully.",
+            message="Dashboard data is up to date.",
+            activity="Dashboard data is up to date.",
+            progress=100,
             finished_at=pd.Timestamp.utcnow().isoformat(),
             success=True,
         )
@@ -109,6 +151,7 @@ def _run_analysis_pipeline() -> None:
             running=False,
             step="Failed",
             message=str(exc),
+            activity="The rerun stopped before finishing.",
             finished_at=pd.Timestamp.utcnow().isoformat(),
             success=False,
         )
@@ -132,6 +175,8 @@ def rerun_analysis(background_tasks: BackgroundTasks) -> dict[str, Any]:
         running=True,
         step="Queued",
         message="Rerun queued.",
+        activity="Waiting for the local process to start.",
+        progress=5,
         started_at=pd.Timestamp.utcnow().isoformat(),
         finished_at=None,
         success=None,
