@@ -79,26 +79,34 @@ export function ProjectArchitecture() {
             <p className="text-sm font-medium text-blue-700">10 phases</p>
           </div>
 
-          <div className="mt-6 overflow-x-auto pb-2">
-            <div className="grid min-w-[1120px] grid-cols-[repeat(10,minmax(0,1fr))] items-stretch gap-0">
-            {phases.map((phase, index) => (
-              <div key={phase.title} className="flex items-center">
-                <div className={`min-h-44 w-full rounded-md border-2 bg-white p-3 shadow-sm ${phase.accent}`}>
-                  <div className="flex items-center gap-2">
-                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-sm bg-blue-700 text-xs font-semibold text-white">
+          <div className="mt-6 overflow-x-auto pb-4">
+            <div className="min-w-[1120px] py-20">
+              <div className="flex items-center">
+                {phases.map((phase, index) => (
+                  <div key={phase.title} className="group relative flex items-center">
+                    <button
+                      className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-full border-2 bg-white text-base font-semibold text-blue-800 shadow-sm transition group-hover:scale-110 group-hover:shadow-md group-focus-within:scale-110 group-focus-within:shadow-md ${phase.accent}`}
+                      type="button"
+                    >
                       {index + 1}
-                    </span>
-                    <h3 className="text-sm font-semibold text-slate-950">{phase.title}</h3>
+                    </button>
+
+                    <div className="absolute left-1/2 top-20 z-20 w-64 -translate-x-1/2 rounded-md border border-slate-200 bg-white p-4 text-left opacity-0 shadow-lg transition group-hover:opacity-100 group-focus-within:opacity-100">
+                      <p className="text-xs font-medium uppercase tracking-wide text-blue-700">Phase {index + 1}</p>
+                      <h3 className="mt-1 text-sm font-semibold text-slate-950">{phase.title}</h3>
+                      <p className="mt-2 text-sm leading-6 text-slate-600">{phase.detail}</p>
+                    </div>
+
+                    <div className="absolute left-1/2 top-[4.75rem] w-24 -translate-x-1/2 text-center">
+                      <h3 className="text-xs font-semibold leading-5 text-slate-700">{phase.title}</h3>
+                    </div>
+
+                    {index < phases.length - 1 && (
+                      <div className="h-px w-12 shrink-0 bg-blue-300" />
+                    )}
                   </div>
-                  <p className="mt-3 text-xs leading-5 text-slate-600">{phase.detail}</p>
-                </div>
-                {index < phases.length - 1 && (
-                  <div className="flex h-px w-8 shrink-0 items-center bg-blue-300">
-                    <span className="ml-auto h-2 w-2 rotate-45 border-r-2 border-t-2 border-blue-500 bg-white" />
-                  </div>
-                )}
+                ))}
               </div>
-            ))}
             </div>
           </div>
         </div>
