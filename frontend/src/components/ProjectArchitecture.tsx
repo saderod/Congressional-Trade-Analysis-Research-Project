@@ -1,4 +1,3 @@
-import type { CSSProperties } from "react";
 import { useState } from "react";
 
 const phases = [
@@ -81,37 +80,32 @@ export function ProjectArchitecture() {
           </div>
 
           <div className="mt-6 overflow-x-auto">
-            <div className="min-w-[2600px] py-6">
-              <div className="grid grid-cols-[repeat(10,minmax(0,1fr))] grid-rows-[17rem_5rem_17rem] items-center">
+            <div className="min-w-[1520px] px-8 py-56">
+              <div className="flex items-center">
                 {phases.map((phase, index) => (
-                  <div key={`${phase.title}-line`} className="col-start-[var(--column)] row-start-2 flex items-center" style={{ "--column": index + 1 } as CSSProperties}>
+                  <div key={phase.title} className="group relative flex items-center">
                     <button
-                      className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-full border-2 bg-white text-base font-semibold text-blue-800 shadow-sm ${phase.accent}`}
+                      className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-full border-2 bg-white text-base font-semibold text-blue-800 shadow-sm transition group-hover:scale-110 group-hover:shadow-md group-focus-within:scale-110 group-focus-within:shadow-md ${phase.accent}`}
                       type="button"
                     >
                       {index + 1}
                     </button>
 
+                    <div className="absolute left-1/2 top-20 w-28 -translate-x-1/2 text-center">
+                      <h3 className="text-xs font-semibold leading-5 text-slate-700">{phase.title}</h3>
+                    </div>
+
+                    <article className={`pointer-events-none absolute z-50 w-[38rem] rounded-md border bg-white p-6 text-left opacity-0 shadow-xl transition group-hover:opacity-100 group-focus-within:opacity-100 ${phase.accent} ${panelPlacement(index)}`}>
+                      <p className="text-xs font-medium uppercase tracking-wide text-blue-700">Phase {index + 1}</p>
+                      <h3 className="mt-1 text-lg font-semibold text-slate-950">{phase.title}</h3>
+                      <p className="mt-3 text-sm leading-6 text-slate-600">{phase.detail}</p>
+                    </article>
+
                     {index < phases.length - 1 && (
-                      <div className="h-px flex-1 bg-blue-300" />
+                      <div className="h-px w-24 shrink-0 bg-blue-300" />
                     )}
                   </div>
                 ))}
-
-                {phases.map((phase, index) => {
-                  const isTop = index % 2 === 0;
-                  return (
-                    <article
-                      key={phase.title}
-                      className={`col-start-[var(--column)] mx-3 rounded-md border bg-white p-5 shadow-sm ${phase.accent} ${isTop ? "row-start-1 self-end" : "row-start-3 self-start"}`}
-                      style={{ "--column": index + 1 } as CSSProperties}
-                    >
-                      <p className="text-xs font-medium uppercase tracking-wide text-blue-700">Phase {index + 1}</p>
-                      <h3 className="mt-1 text-sm font-semibold text-slate-950">{phase.title}</h3>
-                      <p className="mt-2 text-sm leading-6 text-slate-600">{phase.detail}</p>
-                    </article>
-                  );
-                })}
               </div>
             </div>
           </div>
@@ -119,4 +113,15 @@ export function ProjectArchitecture() {
       )}
     </section>
   );
+}
+
+function panelPlacement(index: number): string {
+  const vertical = index % 2 === 0 ? "bottom-24" : "top-32";
+  if (index === 0) {
+    return `${vertical} left-0`;
+  }
+  if (index === phases.length - 1) {
+    return `${vertical} right-0`;
+  }
+  return `${vertical} left-1/2 -translate-x-1/2`;
 }
