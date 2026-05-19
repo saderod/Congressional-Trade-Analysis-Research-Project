@@ -21,8 +21,6 @@ FINBERT_WEIGHT = 0.65
 LLM_WEIGHT = 0.75
 ENSEMBLE_CONFIDENCE_THRESHOLD = 0.70
 ENSEMBLE_MARGIN_THRESHOLD = 0.20
-LLM_TOTAL_BUDGET_SECONDS = 50.0
-LLM_MIN_REMAINING_SECONDS = 1.0
 NEWS_PATH = PROCESSED_DIR / "news.parquet"
 RETRIEVAL_PATH = PROCESSED_DIR / "trade_news_retrieval.parquet"
 NEWS_SENTIMENT_PATH = PROCESSED_DIR / "news_sentiment.parquet"
@@ -89,16 +87,6 @@ def _needs_llm(confidence: float, margin: float) -> bool:
     return confidence < ENSEMBLE_CONFIDENCE_THRESHOLD or margin < ENSEMBLE_MARGIN_THRESHOLD
 
 
-def _remaining_llm_budget(started_at: float) -> float:
-    """Return the remaining wall-clock budget for Ollama calls."""
-    return max(0.0, LLM_TOTAL_BUDGET_SECONDS - (time.monotonic() - started_at))
-
-
-def _llm_timeout_for_remaining_budget(remaining_seconds: float) -> float:
-    """Choose a per-call timeout that cannot exceed the remaining total budget."""
-    return max(LLM_MIN_REMAINING_SECONDS, min(OLLAMA_REQUEST_TIMEOUT_SECONDS, remaining_seconds))
-
-
 def classify_headline(text: str) -> EnsembleClassification:
     """Classify one headline with a weighted NB + FinBERT ensemble and optional Ollama."""
     nb_probabilities = classify_nb_proba([text])[0]
@@ -163,7 +151,7 @@ def _write_ensemble_stats(
         "thresholds": {
             "ensemble_confidence": ENSEMBLE_CONFIDENCE_THRESHOLD,
             "ensemble_margin": ENSEMBLE_MARGIN_THRESHOLD,
-            "llm_total_budget_seconds": LLM_TOTAL_BUDGET_SECONDS,
+            "llm_total_budget_seconds": None,
             "llm_per_call_timeout_seconds": OLLAMA_REQUEST_TIMEOUT_SECONDS,
         },
         "llm_elapsed_seconds": round(llm_elapsed_seconds, 2),
@@ -183,7 +171,6 @@ def classify_news(news: pd.DataFrame) -> pd.DataFrame:
     nb_rows = classify_nb_proba(headlines)
     finbert_rows = classify_finbert_proba(headlines)
     output_rows: list[dict[str, object]] = []
-    llm_started_at = time.monotonic()
 
     for row, nb_probabilities, finbert_probabilities in zip(
         news.itertuples(index=False),
@@ -202,27 +189,23 @@ def classify_news(news: pd.DataFrame) -> pd.DataFrame:
         llm_elapsed_seconds = 0.0
 
         if _needs_llm(confidence, margin):
-            remaining_budget = _remaining_llm_budget(llm_started_at)
-            if remaining_budget < LLM_MIN_REMAINING_SECONDS:
-                source = "ensemble_llm_budget_exhausted"
+            llm_call_started_at = time.monotonic()
+            llm_result = classify_local(
+                str(row.headline),
+                timeout_seconds=OLLAMA_REQUEST_TIMEOUT_SECONDS,
+            )
+            llm_elapsed_seconds = time.monotonic() - llm_call_started_at
+            llm_label = llm_result["label"]
+            llm_confidence = llm_result["confidence"]
+            if llm_result["reasoning"] == "fallback":
+                source = "ensemble_fallback"
             else:
-                llm_call_started_at = time.monotonic()
-                llm_result = classify_local(
-                    str(row.headline),
-                    timeout_seconds=_llm_timeout_for_remaining_budget(remaining_budget),
+                source = "ensemble_ollama"
+                scores = _weighted_scores(
+                    (scores, NB_WEIGHT + FINBERT_WEIGHT),
+                    (_llm_probabilities(llm_label, llm_confidence), LLM_WEIGHT),
                 )
-                llm_elapsed_seconds = time.monotonic() - llm_call_started_at
-                llm_label = llm_result["label"]
-                llm_confidence = llm_result["confidence"]
-                if llm_result["reasoning"] == "fallback":
-                    source = "ensemble_fallback"
-                else:
-                    source = "ensemble_ollama"
-                    scores = _weighted_scores(
-                        (scores, NB_WEIGHT + FINBERT_WEIGHT),
-                        (_llm_probabilities(llm_label, llm_confidence), LLM_WEIGHT),
-                    )
-                    label, confidence, _ = _top_label(scores)
+                label, confidence, _ = _top_label(scores)
 
         nb_label, nb_confidence = _label_confidence(nb_probabilities)
         finbert_label, finbert_confidence = _label_confidence(finbert_probabilities)

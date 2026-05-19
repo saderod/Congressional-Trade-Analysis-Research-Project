@@ -6,14 +6,12 @@ import { ErrorBlock, LoadingBlock } from "./StateBlock";
 const labels: Record<string, string> = {
   ensemble: "Base ensemble",
   ensemble_ollama: "Ollama assisted",
-  ensemble_llm_budget_exhausted: "Budget capped",
   ensemble_fallback: "Fallback",
 };
 
 const colors: Record<string, string> = {
   ensemble: "bg-blue-600",
   ensemble_ollama: "bg-emerald-600",
-  ensemble_llm_budget_exhausted: "bg-slate-500",
   ensemble_fallback: "bg-amber-500",
 };
 

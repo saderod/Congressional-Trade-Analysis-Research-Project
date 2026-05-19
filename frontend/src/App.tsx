@@ -9,7 +9,7 @@ import { SentimentBuckets } from "./components/SentimentBuckets";
 
 export default function App() {
   return (
-    <main className="min-h-screen bg-slate-50 text-slate-900">
+    <main className="min-h-screen bg-blue-50 text-slate-900">
       <div className="mx-auto max-w-7xl px-5 py-8 sm:px-8 lg:py-10">
         <header className="flex flex-col gap-5 border-b border-slate-200 pb-8 lg:flex-row lg:items-end lg:justify-between">
           <div>
@@ -18,7 +18,7 @@ export default function App() {
               Congressional Trading Signal Dashboard
             </h1>
             <p className="mt-4 max-w-3xl text-base leading-7 text-slate-600">
-              A local research view of post-disclosure trade signals, headline retrieval, NLP ensemble routing, and realized 21-day excess returns.
+              This project checks whether stock trades reported by members of Congress did better than the market after the public could see them.
             </p>
           </div>
           <a

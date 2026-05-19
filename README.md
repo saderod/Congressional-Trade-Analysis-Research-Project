@@ -46,7 +46,7 @@ The effective universe is congressional trades disclosed on or after January 1, 
 
 Lookahead control is enforced in two places. Trades enter on the next market signal date after disclosure, not on the transaction date. News retrieval only allows headlines published before the disclosure timestamp, so the NLP features do not see future news.
 
-The NLP ensemble is intentionally local and bounded. It scores only the unique `news_id` values that appear in `trade_news_retrieval.parquet`, rather than the full news table. Naive Bayes, FinBERT, and Ollama contribute weighted votes; Ollama is only used on scoped headlines and is capped by a total runtime budget.
+The NLP ensemble is intentionally local and scoped. It scores only the unique `news_id` values that appear in `trade_news_retrieval.parquet`, rather than the full news table. Naive Bayes, FinBERT, and Ollama contribute weighted votes; Ollama is only used on headlines that are actually checked by the trade/news analysis.
 
 The backtest compares a baseline congressional-trade strategy, an NLP-filtered variant, and SPY. The current sample is too short for a robust train/test split, so the reported results should be treated as exploratory research, not a production trading system.
 
@@ -65,7 +65,7 @@ The backtest compares a baseline congressional-trade strategy, an NLP-filtered v
 2. Pull the local LLM model:
 
    ```powershell
-   ollama pull llama3.1:8b
+   ollama pull qwen2.5:0.5b
    ```
 
 3. Install Python and frontend dependencies:

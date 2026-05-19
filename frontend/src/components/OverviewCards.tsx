@@ -10,10 +10,26 @@ export function OverviewCards() {
   if (error || !data) return <ErrorBlock label="overview" />;
 
   const cards = [
-    { label: "Trades", value: formatInteger(data.total_trades), detail: `${formatInteger(data.trades_with_21d_return)} with 21d returns` },
-    { label: "Mean Buy Excess", value: formatPercent(data.buys.mean_excess_return_21d, 2), detail: `${formatInteger(data.buys.count)} buys` },
-    { label: "Mean Sell Excess", value: formatPercent(data.sells.mean_excess_return_21d, 2), detail: `${formatInteger(data.sells.count)} sells` },
-    { label: "Buy vs Sell p-value", value: formatNumber(data.buy_vs_sell_ttest.p_value, 3), detail: `t=${formatNumber(data.buy_vs_sell_ttest.t_stat, 2)}` },
+    {
+      label: "Trades",
+      value: formatInteger(data.total_trades),
+      detail: `Congressional stock trades reported since January 2025. ${formatInteger(data.trades_with_21d_return)} could be checked one month later.`,
+    },
+    {
+      label: "Mean Buy Excess",
+      value: formatPercent(data.buys.mean_excess_return_21d, 2),
+      detail: `${formatInteger(data.buys.count)} buys beat the market by this much on average one month after they were reported.`,
+    },
+    {
+      label: "Mean Sell Excess",
+      value: formatPercent(data.sells.mean_excess_return_21d, 2),
+      detail: `${formatInteger(data.sells.count)} sells beat the market by this much on average one month after they were reported.`,
+    },
+    {
+      label: "Buy vs Sell p-value",
+      value: formatNumber(data.buy_vs_sell_ttest.p_value, 3),
+      detail: "This is not strong enough to prove that buys and sells performed differently.",
+    },
   ];
 
   return (
