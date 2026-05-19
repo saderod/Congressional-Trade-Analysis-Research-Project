@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 
 const phases = [
   {
@@ -91,30 +91,28 @@ export function ProjectArchitecture() {
             <p className="text-sm font-medium text-blue-700">10 phases</p>
           </div>
 
-          <div className="mt-6 overflow-x-auto">
-            <div className="min-w-[1520px] px-8 pb-10 pt-6">
-              <div className="flex items-center">
+          <div className="mt-6 pb-8 pt-5">
+            <div className="grid grid-cols-[repeat(19,minmax(0,1fr))] items-start">
                 {phases.map((phase, index) => (
-                  <div key={phase.title} className="relative flex items-center">
-                    <button
-                      className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-full border-2 bg-white text-base font-semibold text-blue-800 shadow-sm transition hover:scale-110 hover:shadow-md focus:scale-110 focus:shadow-md ${phase.accent} ${activeIndex === index ? "ring-4 ring-blue-100" : ""}`}
-                      onFocus={() => setActiveIndex(index)}
-                      onMouseEnter={() => setActiveIndex(index)}
-                      type="button"
-                    >
-                      {index + 1}
-                    </button>
-
-                    <div className="absolute left-1/2 top-20 w-28 -translate-x-1/2 text-center">
-                      <h3 className="text-xs font-semibold leading-5 text-slate-700">{phase.title}</h3>
+                  <Fragment key={phase.title}>
+                    <div className="flex flex-col items-center">
+                      <button
+                        className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full border-2 bg-white text-sm font-semibold text-blue-800 shadow-sm transition hover:scale-105 hover:shadow-md focus:scale-105 focus:shadow-md sm:h-12 sm:w-12 ${phase.accent} ${activeIndex === index ? "ring-4 ring-blue-100" : ""}`}
+                        onFocus={() => setActiveIndex(index)}
+                        onMouseEnter={() => setActiveIndex(index)}
+                        type="button"
+                      >
+                        {index + 1}
+                      </button>
+                      <h3 className="mt-2 max-w-20 text-center text-[0.68rem] font-semibold leading-4 text-slate-700 sm:text-xs">
+                        {phase.title}
+                      </h3>
                     </div>
-
                     {index < phases.length - 1 && (
-                      <div className="h-px w-24 shrink-0 bg-blue-300" />
+                      <div className="mt-5 h-px bg-blue-300 sm:mt-6" />
                     )}
-                  </div>
+                  </Fragment>
                 ))}
-              </div>
             </div>
           </div>
 
