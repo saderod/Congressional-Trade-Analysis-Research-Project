@@ -4,6 +4,7 @@ import { MetricsTable } from "./components/MetricsTable";
 import { NlpRoutingCard } from "./components/NlpRoutingCard";
 import { OverviewCards } from "./components/OverviewCards";
 import { RecentTrades } from "./components/RecentTrades";
+import { RerunProcessButton } from "./components/RerunProcessButton";
 import { SenatorTable } from "./components/SenatorTable";
 import { SentimentBuckets } from "./components/SentimentBuckets";
 
@@ -44,6 +45,7 @@ export default function App() {
             <RecentTrades />
           </div>
           <MethodologyNotes />
+          <RerunProcessButton />
         </div>
       </div>
     </main>

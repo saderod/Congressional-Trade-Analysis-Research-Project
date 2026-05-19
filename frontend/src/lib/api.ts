@@ -106,6 +106,15 @@ export type RecentTrade = {
   top_news_publisher: string | null;
 };
 
+export type RerunStatus = {
+  running: boolean;
+  step: string;
+  message: string;
+  started_at: string | null;
+  finished_at: string | null;
+  success: boolean | null;
+};
+
 async function get<T>(path: string): Promise<T> {
   const response = await api.get<T>(path);
   return response.data;
@@ -117,3 +126,8 @@ export const fetchSentimentBuckets = () => get<SentimentBucket[]>("/api/sentimen
 export const fetchNlpRouting = () => get<NlpRouting>("/api/nlp-routing");
 export const fetchBacktest = () => get<Backtest>("/api/backtest");
 export const fetchRecentTrades = (n = 50) => get<RecentTrade[]>(`/api/trades/recent?n=${n}`);
+export const startRerun = async () => {
+  const response = await api.post<RerunStatus>("/api/rerun");
+  return response.data;
+};
+export const fetchRerunStatus = () => get<RerunStatus>("/api/rerun/status");

@@ -3,20 +3,38 @@
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
+import threading
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
-from src.config import PROCESSED_DIR, RESULTS_DIR
+from src.config import PROCESSED_DIR, PROJECT_ROOT, RESULTS_DIR
 
 
 EDA_DIR = RESULTS_DIR / "eda"
 FEATURES_PATH = PROCESSED_DIR / "features.parquet"
 RETRIEVAL_PATH = PROCESSED_DIR / "trade_news_retrieval.parquet"
 NEWS_PATH = PROCESSED_DIR / "news.parquet"
+RERUN_MODULES = [
+    ("Scoring related news headlines", "src.nlp.ensemble"),
+    ("Rebuilding trade features", "src.features.build"),
+    ("Refreshing research summaries", "src.research.eda"),
+    ("Refreshing backtest results", "src.research.backtest"),
+]
+_RERUN_LOCK = threading.Lock()
+_RERUN_STATUS: dict[str, Any] = {
+    "running": False,
+    "step": "Idle",
+    "message": "Ready",
+    "started_at": None,
+    "finished_at": None,
+    "success": None,
+}
 
 
 app = FastAPI(title="congressional-alpha")
@@ -43,10 +61,88 @@ def _read_features() -> pd.DataFrame:
     return pd.read_parquet(FEATURES_PATH)
 
 
+def _set_rerun_status(**updates: Any) -> None:
+    """Update rerun status shared by the API endpoints."""
+    with _RERUN_LOCK:
+        _RERUN_STATUS.update(updates)
+
+
+def _get_rerun_status() -> dict[str, Any]:
+    """Return a copy of the current rerun status."""
+    with _RERUN_LOCK:
+        return dict(_RERUN_STATUS)
+
+
+def _run_analysis_pipeline() -> None:
+    """Run the local analysis refresh pipeline in the background."""
+    _set_rerun_status(
+        running=True,
+        step=RERUN_MODULES[0][0],
+        message="Starting rerun...",
+        started_at=pd.Timestamp.utcnow().isoformat(),
+        finished_at=None,
+        success=None,
+    )
+    try:
+        for label, module in RERUN_MODULES:
+            _set_rerun_status(step=label, message=label)
+            result = subprocess.run(
+                [sys.executable, "-m", module],
+                cwd=PROJECT_ROOT,
+                capture_output=True,
+                text=True,
+                timeout=900,
+                check=False,
+            )
+            if result.returncode != 0:
+                output = (result.stderr or result.stdout or "No output").strip()
+                raise RuntimeError(f"{label} failed: {output[-1000:]}")
+        _set_rerun_status(
+            running=False,
+            step="Complete",
+            message="Analysis refreshed successfully.",
+            finished_at=pd.Timestamp.utcnow().isoformat(),
+            success=True,
+        )
+    except Exception as exc:
+        _set_rerun_status(
+            running=False,
+            step="Failed",
+            message=str(exc),
+            finished_at=pd.Timestamp.utcnow().isoformat(),
+            success=False,
+        )
+
+
 @app.get("/health")
 def health() -> dict[str, str]:
     """Return a basic health response."""
     return {"status": "ok"}
+
+
+@app.post("/api/rerun")
+def rerun_analysis(background_tasks: BackgroundTasks) -> dict[str, Any]:
+    """Start a background refresh of analysis artifacts."""
+    status = _get_rerun_status()
+    if status["running"]:
+        return status
+
+    background_tasks.add_task(_run_analysis_pipeline)
+    _set_rerun_status(
+        running=True,
+        step="Queued",
+        message="Rerun queued.",
+        started_at=pd.Timestamp.utcnow().isoformat(),
+        finished_at=None,
+        success=None,
+    )
+    return _get_rerun_status()
+
+
+@app.get("/api/rerun/status")
+def rerun_status() -> dict[str, Any]:
+    """Return the current analysis rerun status."""
+    return _get_rerun_status()
 
 
 @app.get("/api/overview")

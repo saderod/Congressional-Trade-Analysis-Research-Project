@@ -1,4 +1,3 @@
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { fetchSentimentBuckets } from "../lib/api";
 import { formatInteger, formatPercent } from "../lib/format";
 import { useApi } from "../lib/useApi";
@@ -15,28 +14,37 @@ export function SentimentBuckets() {
     excessReturn: row.mean_excess_return_21d ?? 0,
     n: row.n,
   }));
+  const totalTrades = chartData.reduce((sum, row) => sum + row.n, 0);
+  const averageReturn =
+    totalTrades > 0
+      ? chartData.reduce((sum, row) => sum + row.excessReturn * row.n, 0) / totalTrades
+      : 0;
+  const helped = averageReturn > 0;
+  const answer = helped ? "Yes, but the evidence is thin" : "No clear evidence";
 
   return (
     <section className="rounded-md border border-slate-200 bg-white p-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-lg font-semibold text-slate-950">Sentiment Buckets</h2>
-          <p className="mt-1 text-sm text-slate-500">Mean 21d excess return by sentiment quintile</p>
+          <h2 className="text-lg font-semibold text-slate-950">Did News Tone Help Explain Returns?</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Simple answer based on the trades that had matched news.
+          </p>
         </div>
       </div>
-      <div className="mt-5 h-72">
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={chartData} margin={{ top: 12, right: 8, left: 0, bottom: 0 }}>
-            <CartesianGrid stroke="#e2e8f0" vertical={false} />
-            <XAxis dataKey="bucket" tickLine={false} axisLine={false} />
-            <YAxis tickFormatter={(value) => formatPercent(Number(value), 0)} tickLine={false} axisLine={false} width={56} />
-            <Tooltip
-              formatter={(value, name) => [formatPercent(Number(value), 2), name === "excessReturn" ? "Excess return" : name]}
-              labelFormatter={(label) => `${label} (${formatInteger(chartData.find((row) => row.bucket === label)?.n)} trades)`}
-            />
-            <Bar dataKey="excessReturn" fill="#2563eb" radius={[3, 3, 0, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
+
+      <div className="mt-5 rounded-md border border-slate-200 bg-slate-50 p-5">
+        <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Answer</p>
+        <p className={helped ? "mt-2 text-3xl font-semibold text-emerald-700" : "mt-2 text-3xl font-semibold text-slate-950"}>
+          {answer}
+        </p>
+        <p className="mt-4 text-sm leading-6 text-slate-600">
+          Only {formatInteger(totalTrades)} trades had enough matched news to check. Those trades performed{" "}
+          {formatPercent(Math.abs(averageReturn), 2)} {helped ? "better" : "worse"} than the market about one month later.
+        </p>
+        <p className="mt-3 text-sm leading-6 text-slate-600">
+          That is too little data to say the news tone reliably helped predict returns.
+        </p>
       </div>
     </section>
   );
