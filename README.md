@@ -2,7 +2,15 @@
 
 A fully local, zero-cost research pipeline for testing whether congressional stock disclosures contain tradeable alpha after accounting for disclosure lag and pre-disclosure news.
 
-![Dashboard walkthrough](docs/assets/dashboard.gif)
+## Dashboard Preview
+
+![Dashboard overview](docs/assets/dashboard-overview.png)
+
+![Backtest chart and metrics](docs/assets/dashboard-backtest.png)
+
+![Senator and recent trade tables](docs/assets/dashboard-tables.png)
+
+![Methodology and rerun control](docs/assets/dashboard-methodology.png)
 
 ## Thesis Question
 
