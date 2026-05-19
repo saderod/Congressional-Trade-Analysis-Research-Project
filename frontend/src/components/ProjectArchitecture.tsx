@@ -68,7 +68,7 @@ export function ProjectArchitecture() {
       </button>
 
       {open && (
-        <div className="mt-4 rounded-md border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="relative z-20 mt-4 rounded-md border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <h2 className="text-lg font-semibold text-slate-950">Project Architecture</h2>
@@ -79,8 +79,8 @@ export function ProjectArchitecture() {
             <p className="text-sm font-medium text-blue-700">10 phases</p>
           </div>
 
-          <div className="mt-6 overflow-x-auto pb-4">
-            <div className="min-w-[1120px] py-20">
+          <div className="mt-6 overflow-x-auto overflow-y-visible pb-36">
+            <div className="min-w-[1120px] pb-8 pt-6">
               <div className="flex items-center">
                 {phases.map((phase, index) => (
                   <div key={phase.title} className="group relative flex items-center">
@@ -91,7 +91,7 @@ export function ProjectArchitecture() {
                       {index + 1}
                     </button>
 
-                    <div className="absolute left-1/2 top-20 z-20 w-64 -translate-x-1/2 rounded-md border border-slate-200 bg-white p-4 text-left opacity-0 shadow-lg transition group-hover:opacity-100 group-focus-within:opacity-100">
+                    <div className="pointer-events-none absolute left-1/2 top-20 z-50 w-64 -translate-x-1/2 rounded-md border border-slate-200 bg-white p-4 text-left opacity-0 shadow-lg transition group-hover:opacity-100 group-focus-within:opacity-100">
                       <p className="text-xs font-medium uppercase tracking-wide text-blue-700">Phase {index + 1}</p>
                       <h3 className="mt-1 text-sm font-semibold text-slate-950">{phase.title}</h3>
                       <p className="mt-2 text-sm leading-6 text-slate-600">{phase.detail}</p>
