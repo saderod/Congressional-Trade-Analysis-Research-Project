@@ -3,6 +3,7 @@ import { MethodologyNotes } from "./components/MethodologyNotes";
 import { MetricsTable } from "./components/MetricsTable";
 import { NlpRoutingCard } from "./components/NlpRoutingCard";
 import { OverviewCards } from "./components/OverviewCards";
+import { ProjectArchitecture } from "./components/ProjectArchitecture";
 import { RecentTrades } from "./components/RecentTrades";
 import { RerunProcessButton } from "./components/RerunProcessButton";
 import { SenatorTable } from "./components/SenatorTable";
@@ -33,6 +34,7 @@ export default function App() {
         </header>
 
         <div className="mt-8 space-y-6">
+          <ProjectArchitecture />
           <OverviewCards />
           <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
             <NlpRoutingCard />
