@@ -4,14 +4,12 @@ import { useApi } from "../lib/useApi";
 import { ErrorBlock, LoadingBlock } from "./StateBlock";
 
 const labels: Record<string, string> = {
-  ensemble: "Base ensemble",
-  ensemble_ollama: "Ollama assisted",
+  ensemble_all_models: "All 3 models",
   ensemble_fallback: "Fallback",
 };
 
 const colors: Record<string, string> = {
-  ensemble: "bg-blue-600",
-  ensemble_ollama: "bg-emerald-600",
+  ensemble_all_models: "bg-emerald-600",
   ensemble_fallback: "bg-amber-500",
 };
 
@@ -27,9 +25,9 @@ export function NlpRoutingCard() {
     <section className="rounded-md border border-slate-200 bg-white p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h2 className="text-lg font-semibold text-slate-950">NLP Ensemble Routing</h2>
+          <h2 className="text-lg font-semibold text-slate-950">NLP Ensemble Scoring</h2>
           <p className="mt-1 text-sm text-slate-500">
-            {formatInteger(data.checked_news)} checked headlines from {formatInteger(data.retrieval_rows)} retrieval rows
+            {formatInteger(data.checked_news)} headlines scored with Naive Bayes, FinBERT, and Ollama
           </p>
         </div>
         <div className="text-right">

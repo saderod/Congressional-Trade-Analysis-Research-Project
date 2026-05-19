@@ -52,7 +52,7 @@ export type NlpRouting = {
   total_processed_news: number;
   retrieval_rows: number;
   weights: Record<string, number>;
-  thresholds: Record<string, number | null>;
+  llm: Record<string, number | string | null>;
   llm_elapsed_seconds: number;
   counts: Record<string, number>;
   percentages: Record<string, number>;

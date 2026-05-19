@@ -19,8 +19,6 @@ LABELS = ["bearish", "neutral", "bullish"]
 NB_WEIGHT = 0.35
 FINBERT_WEIGHT = 0.65
 LLM_WEIGHT = 0.75
-ENSEMBLE_CONFIDENCE_THRESHOLD = 0.70
-ENSEMBLE_MARGIN_THRESHOLD = 0.20
 NEWS_PATH = PROCESSED_DIR / "news.parquet"
 RETRIEVAL_PATH = PROCESSED_DIR / "trade_news_retrieval.parquet"
 NEWS_SENTIMENT_PATH = PROCESSED_DIR / "news_sentiment.parquet"
@@ -82,33 +80,26 @@ def _llm_probabilities(label: str, confidence: float) -> dict[str, float]:
     return probabilities
 
 
-def _needs_llm(confidence: float, margin: float) -> bool:
-    """Return True when the NB+FinBERT ensemble is too uncertain."""
-    return confidence < ENSEMBLE_CONFIDENCE_THRESHOLD or margin < ENSEMBLE_MARGIN_THRESHOLD
-
-
 def classify_headline(text: str) -> EnsembleClassification:
-    """Classify one headline with a weighted NB + FinBERT ensemble and optional Ollama."""
+    """Classify one headline with a weighted NB + FinBERT + Ollama ensemble."""
     nb_probabilities = classify_nb_proba([text])[0]
     finbert_probabilities = classify_finbert_proba([text])[0]
-    scores = _weighted_scores(
+    llm_result = classify_local(text, timeout_seconds=OLLAMA_REQUEST_TIMEOUT_SECONDS)
+    weighted_votes = [
         (nb_probabilities, NB_WEIGHT),
         (finbert_probabilities, FINBERT_WEIGHT),
-    )
-    label, confidence, margin = _top_label(scores)
-    if not _needs_llm(confidence, margin):
-        return {"label": label, "confidence": confidence, "source": "ensemble"}
-
-    llm_result = classify_local(text, timeout_seconds=OLLAMA_REQUEST_TIMEOUT_SECONDS)
+    ]
+    source = "ensemble_all_models"
     if llm_result["reasoning"] == "fallback":
-        return {"label": label, "confidence": confidence, "source": "ensemble_fallback"}
+        source = "ensemble_fallback"
+    else:
+        weighted_votes.append(
+            (_llm_probabilities(llm_result["label"], llm_result["confidence"]), LLM_WEIGHT)
+        )
 
-    llm_scores = _weighted_scores(
-        (scores, NB_WEIGHT + FINBERT_WEIGHT),
-        (_llm_probabilities(llm_result["label"], llm_result["confidence"]), LLM_WEIGHT),
-    )
-    label, confidence, _ = _top_label(llm_scores)
-    return {"label": label, "confidence": confidence, "source": "ensemble_ollama"}
+    scores = _weighted_scores(*weighted_votes)
+    label, confidence, _ = _top_label(scores)
+    return {"label": label, "confidence": confidence, "source": source}
 
 
 def _load_checked_news() -> pd.DataFrame:
@@ -148,11 +139,9 @@ def _write_ensemble_stats(
             "finbert": FINBERT_WEIGHT,
             "ollama": LLM_WEIGHT,
         },
-        "thresholds": {
-            "ensemble_confidence": ENSEMBLE_CONFIDENCE_THRESHOLD,
-            "ensemble_margin": ENSEMBLE_MARGIN_THRESHOLD,
-            "llm_total_budget_seconds": None,
-            "llm_per_call_timeout_seconds": OLLAMA_REQUEST_TIMEOUT_SECONDS,
+        "llm": {
+            "policy": "run_on_every_checked_headline",
+            "per_call_timeout_seconds": OLLAMA_REQUEST_TIMEOUT_SECONDS,
         },
         "llm_elapsed_seconds": round(llm_elapsed_seconds, 2),
         "counts": dict(sorted(counts.items())),
@@ -178,34 +167,30 @@ def classify_news(news: pd.DataFrame) -> pd.DataFrame:
         finbert_rows,
         strict=True,
     ):
-        scores = _weighted_scores(
+        weighted_votes = [
             (nb_probabilities, NB_WEIGHT),
             (finbert_probabilities, FINBERT_WEIGHT),
-        )
-        label, confidence, margin = _top_label(scores)
-        source = "ensemble"
+        ]
+        source = "ensemble_all_models"
         llm_label = ""
         llm_confidence = 0.0
-        llm_elapsed_seconds = 0.0
-
-        if _needs_llm(confidence, margin):
-            llm_call_started_at = time.monotonic()
-            llm_result = classify_local(
-                str(row.headline),
-                timeout_seconds=OLLAMA_REQUEST_TIMEOUT_SECONDS,
+        llm_call_started_at = time.monotonic()
+        llm_result = classify_local(
+            str(row.headline),
+            timeout_seconds=OLLAMA_REQUEST_TIMEOUT_SECONDS,
+        )
+        llm_elapsed_seconds = time.monotonic() - llm_call_started_at
+        llm_label = llm_result["label"]
+        llm_confidence = llm_result["confidence"]
+        if llm_result["reasoning"] == "fallback":
+            source = "ensemble_fallback"
+        else:
+            weighted_votes.append(
+                (_llm_probabilities(llm_label, llm_confidence), LLM_WEIGHT)
             )
-            llm_elapsed_seconds = time.monotonic() - llm_call_started_at
-            llm_label = llm_result["label"]
-            llm_confidence = llm_result["confidence"]
-            if llm_result["reasoning"] == "fallback":
-                source = "ensemble_fallback"
-            else:
-                source = "ensemble_ollama"
-                scores = _weighted_scores(
-                    (scores, NB_WEIGHT + FINBERT_WEIGHT),
-                    (_llm_probabilities(llm_label, llm_confidence), LLM_WEIGHT),
-                )
-                label, confidence, _ = _top_label(scores)
+
+        scores = _weighted_scores(*weighted_votes)
+        label, confidence, _ = _top_label(scores)
 
         nb_label, nb_confidence = _label_confidence(nb_probabilities)
         finbert_label, finbert_confidence = _label_confidence(finbert_probabilities)
