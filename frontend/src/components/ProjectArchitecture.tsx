@@ -1,54 +1,55 @@
+import type { CSSProperties } from "react";
 import { useState } from "react";
 
 const phases = [
   {
     title: "Collect trades",
-    detail: "Pull Senate trade disclosures from GovTrades, with legacy sources only as a fallback.",
+    detail: "The pipeline starts by pulling Senate stock-trade disclosures from GovTrades. Each record includes who reported the trade, the ticker, the transaction date, the disclosure date, the trade type, and the reported dollar range. The older Senate Stock Watcher sources stay in the code only as a fallback because they are stale.",
     accent: "border-blue-300",
   },
   {
     title: "Clean trades",
-    detail: "Keep usable stock buys and sells, standardize dates, tickers, and trade IDs.",
+    detail: "The raw disclosures are cleaned into one consistent table. The project keeps usable public stock buys and sells, standardizes ticker symbols, converts transaction and disclosure dates into real date fields, and assigns each trade a stable trade ID so later tables can point back to the same trade.",
     accent: "border-cyan-300",
   },
   {
     title: "Pull prices",
-    detail: "Download stock and S&P 500 price history for the tickers in the trade set.",
+    detail: "For every ticker in the trade universe, the app downloads daily market prices from Yahoo Finance. It also downloads the S&P 500 ETF as the market comparison. These prices let the project measure what happened after each trade became public.",
     accent: "border-emerald-300",
   },
   {
     title: "Pull headlines",
-    detail: "Download recent Yahoo Finance headlines for the same ticker universe.",
+    detail: "The news step downloads recent Yahoo Finance headlines for the same tickers. This is where coverage becomes limited, because Yahoo Finance only provides a recent news window. The project keeps the headline, publisher, link, source, and published time for each item.",
     accent: "border-teal-300",
   },
   {
     title: "Match news",
-    detail: "Attach only headlines published before the trade became public.",
+    detail: "The matching step connects trades to related headlines for the same ticker. It only allows headlines that were published before the congressional disclosure date, so the analysis does not accidentally use future information that investors could not have seen yet.",
     accent: "border-amber-300",
   },
   {
     title: "Score tone",
-    detail: "Use Naive Bayes, FinBERT, and Ollama to rate matched headline tone.",
+    detail: "Only the matched headline set is scored, not the entire news table. Three local models contribute: Naive Bayes, FinBERT, and Ollama. Their results are combined into a weighted sentiment score that estimates whether the related news tone was positive, negative, or neutral.",
     accent: "border-violet-300",
   },
   {
     title: "Build features",
-    detail: "Combine trades, prices, returns, matched news, and sentiment into one table.",
+    detail: "This phase combines the cleaned trades, price returns, matched headlines, and sentiment scores into the main research table. It calculates post-disclosure returns and excess returns, then stores the final features that power the cards, tables, charts, and backtest.",
     accent: "border-fuchsia-300",
   },
   {
     title: "Summarize findings",
-    detail: "Create the overview cards, senator table, and news-tone answer.",
+    detail: "The research summaries turn the feature table into plain dashboard numbers. This creates the trade count, buy and sell averages, buy-versus-sell comparison, top senators table, news coverage summary, and the simple yes-or-no style answer for whether news tone helped explain returns.",
     accent: "border-rose-300",
   },
   {
     title: "Run backtest",
-    detail: "Simulate the baseline strategy, news-filtered strategy, and S&P 500 comparison.",
+    detail: "The backtest simulates what would have happened if the strategy acted after trades became public. It compares a baseline congressional-trade strategy, a news-filtered version that only buys when matched news is positive, and a simple S&P 500 ETF benchmark.",
     accent: "border-orange-300",
   },
   {
     title: "Show dashboard",
-    detail: "Serve the results through FastAPI and display them in the React dashboard.",
+    detail: "The final phase serves the saved research outputs through the FastAPI backend and displays them in the React dashboard. The dashboard does not recalculate everything on every page load; it reads the latest generated files and lets you rerun the process when you want fresh results.",
     accent: "border-slate-300",
   },
 ];
@@ -79,33 +80,38 @@ export function ProjectArchitecture() {
             <p className="text-sm font-medium text-blue-700">10 phases</p>
           </div>
 
-          <div className="mt-6 overflow-x-auto overflow-y-visible pb-36">
-            <div className="min-w-[1120px] pb-8 pt-6">
-              <div className="flex items-center">
+          <div className="mt-6 overflow-x-auto">
+            <div className="min-w-[2600px] py-6">
+              <div className="grid grid-cols-[repeat(10,minmax(0,1fr))] grid-rows-[17rem_5rem_17rem] items-center">
                 {phases.map((phase, index) => (
-                  <div key={phase.title} className="group relative flex items-center">
+                  <div key={`${phase.title}-line`} className="col-start-[var(--column)] row-start-2 flex items-center" style={{ "--column": index + 1 } as CSSProperties}>
                     <button
-                      className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-full border-2 bg-white text-base font-semibold text-blue-800 shadow-sm transition group-hover:scale-110 group-hover:shadow-md group-focus-within:scale-110 group-focus-within:shadow-md ${phase.accent}`}
+                      className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-full border-2 bg-white text-base font-semibold text-blue-800 shadow-sm ${phase.accent}`}
                       type="button"
                     >
                       {index + 1}
                     </button>
 
-                    <div className="pointer-events-none absolute left-1/2 top-20 z-50 w-64 -translate-x-1/2 rounded-md border border-slate-200 bg-white p-4 text-left opacity-0 shadow-lg transition group-hover:opacity-100 group-focus-within:opacity-100">
-                      <p className="text-xs font-medium uppercase tracking-wide text-blue-700">Phase {index + 1}</p>
-                      <h3 className="mt-1 text-sm font-semibold text-slate-950">{phase.title}</h3>
-                      <p className="mt-2 text-sm leading-6 text-slate-600">{phase.detail}</p>
-                    </div>
-
-                    <div className="absolute left-1/2 top-[4.75rem] w-24 -translate-x-1/2 text-center">
-                      <h3 className="text-xs font-semibold leading-5 text-slate-700">{phase.title}</h3>
-                    </div>
-
                     {index < phases.length - 1 && (
-                      <div className="h-px w-12 shrink-0 bg-blue-300" />
+                      <div className="h-px flex-1 bg-blue-300" />
                     )}
                   </div>
                 ))}
+
+                {phases.map((phase, index) => {
+                  const isTop = index % 2 === 0;
+                  return (
+                    <article
+                      key={phase.title}
+                      className={`col-start-[var(--column)] mx-3 rounded-md border bg-white p-5 shadow-sm ${phase.accent} ${isTop ? "row-start-1 self-end" : "row-start-3 self-start"}`}
+                      style={{ "--column": index + 1 } as CSSProperties}
+                    >
+                      <p className="text-xs font-medium uppercase tracking-wide text-blue-700">Phase {index + 1}</p>
+                      <h3 className="mt-1 text-sm font-semibold text-slate-950">{phase.title}</h3>
+                      <p className="mt-2 text-sm leading-6 text-slate-600">{phase.detail}</p>
+                    </article>
+                  );
+                })}
               </div>
             </div>
           </div>
