@@ -13,7 +13,7 @@ export default function App() {
   return (
     <main className="min-h-screen bg-blue-50 text-slate-900">
       <div className="mx-auto max-w-7xl px-5 py-8 sm:px-8 lg:py-10">
-        <header className="flex flex-col gap-5 border-b border-slate-200 pb-8 lg:flex-row lg:items-end lg:justify-between">
+        <header className="border-b border-slate-200 pb-8">
           <div>
             <p className="text-sm font-medium uppercase tracking-wide text-blue-700">congressional-alpha</p>
             <h1 className="mt-3 max-w-4xl text-4xl font-semibold tracking-normal text-slate-950 md:text-5xl">
@@ -23,14 +23,6 @@ export default function App() {
               This project checks whether stock trades reported by members of Congress did better than the market after the public could see them.
             </p>
           </div>
-          <a
-            className="inline-flex w-fit items-center justify-center rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:border-blue-500 hover:text-blue-700"
-            href="https://github.com/"
-            rel="noreferrer"
-            target="_blank"
-          >
-            GitHub
-          </a>
         </header>
 
         <div className="mt-8 space-y-6">
