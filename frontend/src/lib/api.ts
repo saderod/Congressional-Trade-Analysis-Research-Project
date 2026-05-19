@@ -109,9 +109,9 @@ export type RecentTrade = {
 export type RerunStatus = {
   running: boolean;
   step: string;
-  message: string;
-  activity: string;
-  progress: number;
+  message?: string;
+  activity?: string;
+  progress?: number;
   started_at: string | null;
   finished_at: string | null;
   success: boolean | null;

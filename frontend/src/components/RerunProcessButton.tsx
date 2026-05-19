@@ -11,7 +11,7 @@ export function RerunProcessButton() {
       return undefined;
     }
 
-    const interval = window.setInterval(() => {
+    const pollStatus = () => {
       fetchRerunStatus()
         .then((nextStatus) => {
           if (active) {
@@ -23,7 +23,9 @@ export function RerunProcessButton() {
             setError(requestError instanceof Error ? requestError.message : "Could not check rerun status");
           }
         });
-    }, 2500);
+    };
+    pollStatus();
+    const interval = window.setInterval(pollStatus, 1000);
 
     return () => {
       active = false;
@@ -42,8 +44,8 @@ export function RerunProcessButton() {
   };
 
   const isRunning = status?.running ?? false;
-  const progress = Math.max(0, Math.min(100, status?.progress ?? 0));
-  const statusText = error ?? status?.activity ?? "Refreshes the local analysis files used by this dashboard.";
+  const progress = getProgress(status);
+  const statusText = error ?? status?.activity ?? status?.message ?? "Refreshes the local analysis files used by this dashboard.";
 
   return (
     <section className="flex flex-col items-center gap-3 py-4 text-center">
@@ -71,4 +73,26 @@ export function RerunProcessButton() {
       </p>
     </section>
   );
+}
+
+function getProgress(status: RerunStatus | null): number {
+  const explicitProgress = Number(status?.progress);
+  if (Number.isFinite(explicitProgress)) {
+    return Math.max(0, Math.min(100, Math.round(explicitProgress)));
+  }
+
+  if (!status) {
+    return 0;
+  }
+
+  const step = status.step.toLowerCase();
+  if (status.success === true || step.includes("complete")) return 100;
+  if (status.success === false || step.includes("failed")) return 0;
+  if (step.includes("queued") || step.includes("waiting")) return 5;
+  if (step.includes("reading") || step.includes("pulling")) return 10;
+  if (step.includes("scoring") || step.includes("analyzing") || step.includes("news")) return 30;
+  if (step.includes("feature") || step.includes("matching")) return 55;
+  if (step.includes("summar") || step.includes("dashboard")) return 75;
+  if (step.includes("portfolio") || step.includes("backtest")) return 90;
+  return status.running ? 5 : 0;
 }
