@@ -1,4 +1,4 @@
-import { Fragment, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 
 const phases = [
   {
@@ -66,7 +66,25 @@ const phases = [
 export function ProjectArchitecture() {
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [userInteracted, setUserInteracted] = useState(false);
   const activePhase = phases[activeIndex];
+
+  useEffect(() => {
+    if (!open || userInteracted) {
+      return undefined;
+    }
+
+    const interval = window.setInterval(() => {
+      setActiveIndex((current) => (current + 1) % phases.length);
+    }, 4500);
+
+    return () => window.clearInterval(interval);
+  }, [open, userInteracted]);
+
+  const activatePhase = (index: number) => {
+    setActiveIndex(index);
+    setUserInteracted(true);
+  };
 
   return (
     <section>
@@ -91,15 +109,21 @@ export function ProjectArchitecture() {
             <p className="text-sm font-medium text-blue-700">10 phases</p>
           </div>
 
-          <div className="mt-6 pb-8 pt-5">
+          <div className="mt-6 flex justify-center">
+            <div className="rounded-full bg-blue-700 px-4 py-2 text-sm font-medium text-white shadow-[0_0_24px_rgba(29,78,216,0.45)] animate-pulse">
+              Hover over a circle to learn what that phase does
+            </div>
+          </div>
+
+          <div className="mt-4 pb-8 pt-5">
             <div className="grid grid-cols-[repeat(19,minmax(0,1fr))] items-start">
                 {phases.map((phase, index) => (
                   <Fragment key={phase.title}>
                     <div className="flex flex-col items-center">
                       <button
                         className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full border-2 bg-white text-sm font-semibold text-blue-800 shadow-sm transition hover:scale-105 hover:shadow-md focus:scale-105 focus:shadow-md sm:h-12 sm:w-12 ${phase.accent} ${activeIndex === index ? "ring-4 ring-blue-100" : ""}`}
-                        onFocus={() => setActiveIndex(index)}
-                        onMouseEnter={() => setActiveIndex(index)}
+                        onFocus={() => activatePhase(index)}
+                        onMouseEnter={() => activatePhase(index)}
                         type="button"
                       >
                         {index + 1}
@@ -122,7 +146,9 @@ export function ProjectArchitecture() {
                 <p className="text-xs font-medium uppercase tracking-wide text-blue-700">Phase {activeIndex + 1}</p>
                 <h3 className="mt-1 text-xl font-semibold text-slate-950">{activePhase.title}</h3>
               </div>
-              <p className="text-sm font-medium text-slate-500">Hover a node to update this panel</p>
+              <p className="text-sm font-medium text-slate-500">
+                {userInteracted ? "Showing the phase you selected" : "Auto-playing until you hover a circle"}
+              </p>
             </div>
             <div className="mt-5 grid gap-6 lg:grid-cols-[0.75fr_1.25fr]">
               <div>
