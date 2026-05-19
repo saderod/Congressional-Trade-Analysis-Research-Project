@@ -3,58 +3,70 @@ import { useState } from "react";
 const phases = [
   {
     title: "Collect trades",
-    detail: "The pipeline starts by pulling Senate stock-trade disclosures from GovTrades. Each record includes who reported the trade, the ticker, the transaction date, the disclosure date, the trade type, and the reported dollar range. The older Senate Stock Watcher sources stay in the code only as a fallback because they are stale.",
+    simple: "The app first gathers the congressional stock trades that will be studied.",
+    technical: "The ingest step pulls Senate trade disclosures from GovTrades and normalizes the raw fields used later in the pipeline: senator, ticker, transaction date, disclosure date, trade type, amount range, asset type, source, and PTR link. Legacy Senate Stock Watcher URLs remain in the code as a fallback, but the active source is GovTrades because the old snapshots are stale.",
     accent: "border-blue-300",
   },
   {
     title: "Clean trades",
-    detail: "The raw disclosures are cleaned into one consistent table. The project keeps usable public stock buys and sells, standardizes ticker symbols, converts transaction and disclosure dates into real date fields, and assigns each trade a stable trade ID so later tables can point back to the same trade.",
+    simple: "Messy disclosure records are turned into one clean trade table.",
+    technical: "The cleaning step keeps public stock buy and sell rows, removes unusable ticker shapes, standardizes tickers, converts transaction_date and disclosure_date into date fields, and creates a stable trade_id. That trade_id persists through parquet and DuckDB so retrieval, feature, and dashboard tables can safely reference the same trade.",
     accent: "border-cyan-300",
   },
   {
     title: "Pull prices",
-    detail: "For every ticker in the trade universe, the app downloads daily market prices from Yahoo Finance. It also downloads the S&P 500 ETF as the market comparison. These prices let the project measure what happened after each trade became public.",
+    simple: "The app downloads stock prices so it can see what happened after each trade became public.",
+    technical: "For every ticker in the cleaned trade universe, the price ingest downloads daily OHLCV history from Yahoo Finance. It also downloads SPY as the market benchmark. Prices are aligned to the first market session after disclosure, which prevents the backtest from acting before the public disclosure was available.",
     accent: "border-emerald-300",
   },
   {
     title: "Pull headlines",
-    detail: "The news step downloads recent Yahoo Finance headlines for the same tickers. This is where coverage becomes limited, because Yahoo Finance only provides a recent news window. The project keeps the headline, publisher, link, source, and published time for each item.",
+    simple: "The app collects recent news headlines for the same stocks.",
+    technical: "The news ingest queries Yahoo Finance by ticker and stores headline, summary, publisher, URL, source, and published_at in UTC. This source has a limited recent-news window, so the project's effective news coverage is much smaller than the full trade history.",
     accent: "border-teal-300",
   },
   {
     title: "Match news",
-    detail: "The matching step connects trades to related headlines for the same ticker. It only allows headlines that were published before the congressional disclosure date, so the analysis does not accidentally use future information that investors could not have seen yet.",
+    simple: "Each trade is matched only with news that existed before the trade was disclosed.",
+    technical: "The retrieval step embeds headlines and links them to trade rows by ticker and similarity. It enforces a strict pre-disclosure cutoff, so a trade can only use headlines with published_at earlier than the disclosure timestamp. That rule is the main lookahead-control guardrail for the NLP features.",
     accent: "border-amber-300",
   },
   {
     title: "Score tone",
-    detail: "Only the matched headline set is scored, not the entire news table. Three local models contribute: Naive Bayes, FinBERT, and Ollama. Their results are combined into a weighted sentiment score that estimates whether the related news tone was positive, negative, or neutral.",
+    simple: "The app estimates whether matched news sounded positive, negative, or neutral.",
+    technical: "The ensemble only scores unique news_ids found in trade_news_retrieval.parquet, not the full news table. Naive Bayes, FinBERT, and Ollama each vote on the scoped headline set. Their weighted output becomes the sentiment label, confidence, and numeric score used by downstream features.",
     accent: "border-violet-300",
   },
   {
     title: "Build features",
-    detail: "This phase combines the cleaned trades, price returns, matched headlines, and sentiment scores into the main research table. It calculates post-disclosure returns and excess returns, then stores the final features that power the cards, tables, charts, and backtest.",
+    simple: "The cleaned trades, prices, and news scores are combined into one research table.",
+    technical: "The feature build joins cleaned trades, adjusted price returns, retrieval rows, sentiment outputs, and benchmark returns. It calculates forward 21-trading-day returns, excess returns versus SPY, headline counts, top matched headline fields, and sentiment aggregates that power the dashboard.",
     accent: "border-fuchsia-300",
   },
   {
     title: "Summarize findings",
-    detail: "The research summaries turn the feature table into plain dashboard numbers. This creates the trade count, buy and sell averages, buy-versus-sell comparison, top senators table, news coverage summary, and the simple yes-or-no style answer for whether news tone helped explain returns.",
+    simple: "The app turns the research table into readable dashboard takeaways.",
+    technical: "The research scripts aggregate the feature table into JSON artifacts for the API. They compute total trades, coverage, buy and sell averages, t-test values, senator-level confidence ranges, sentiment coverage, and the yes-or-no style news-tone summary.",
     accent: "border-rose-300",
   },
   {
     title: "Run backtest",
-    detail: "The backtest simulates what would have happened if the strategy acted after trades became public. It compares a baseline congressional-trade strategy, a news-filtered version that only buys when matched news is positive, and a simple S&P 500 ETF benchmark.",
+    simple: "The app simulates how a simple strategy would have performed after disclosures became public.",
+    technical: "The backtest compares three paths: a baseline congressional-trade strategy, an NLP-filtered strategy that only buys when matched news tone is positive, and a buy-and-hold SPY benchmark. It records equity curves, total return, annualized return, volatility, Sharpe, drawdown, hit rate, and trade count.",
     accent: "border-orange-300",
   },
   {
     title: "Show dashboard",
-    detail: "The final phase serves the saved research outputs through the FastAPI backend and displays them in the React dashboard. The dashboard does not recalculate everything on every page load; it reads the latest generated files and lets you rerun the process when you want fresh results.",
+    simple: "The final results are shown in the web dashboard.",
+    technical: "FastAPI serves the saved parquet and JSON outputs through dashboard endpoints. React fetches those endpoints and renders the overview cards, NLP summary, news-tone answer, simulated portfolio chart, backtest metrics, senator table, recent trades, rerun control, and this architecture view.",
     accent: "border-slate-300",
   },
 ];
 
 export function ProjectArchitecture() {
   const [open, setOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const activePhase = phases[activeIndex];
 
   return (
     <section>
@@ -80,12 +92,14 @@ export function ProjectArchitecture() {
           </div>
 
           <div className="mt-6 overflow-x-auto">
-            <div className="min-w-[1520px] px-8 py-56">
+            <div className="min-w-[1520px] px-8 pb-10 pt-6">
               <div className="flex items-center">
                 {phases.map((phase, index) => (
-                  <div key={phase.title} className="group relative flex items-center">
+                  <div key={phase.title} className="relative flex items-center">
                     <button
-                      className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-full border-2 bg-white text-base font-semibold text-blue-800 shadow-sm transition group-hover:scale-110 group-hover:shadow-md group-focus-within:scale-110 group-focus-within:shadow-md ${phase.accent}`}
+                      className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-full border-2 bg-white text-base font-semibold text-blue-800 shadow-sm transition hover:scale-110 hover:shadow-md focus:scale-110 focus:shadow-md ${phase.accent} ${activeIndex === index ? "ring-4 ring-blue-100" : ""}`}
+                      onFocus={() => setActiveIndex(index)}
+                      onMouseEnter={() => setActiveIndex(index)}
                       type="button"
                     >
                       {index + 1}
@@ -95,12 +109,6 @@ export function ProjectArchitecture() {
                       <h3 className="text-xs font-semibold leading-5 text-slate-700">{phase.title}</h3>
                     </div>
 
-                    <article className={`pointer-events-none absolute z-50 w-[38rem] rounded-md border bg-white p-6 text-left opacity-0 shadow-xl transition group-hover:opacity-100 group-focus-within:opacity-100 ${phase.accent} ${panelPlacement(index)}`}>
-                      <p className="text-xs font-medium uppercase tracking-wide text-blue-700">Phase {index + 1}</p>
-                      <h3 className="mt-1 text-lg font-semibold text-slate-950">{phase.title}</h3>
-                      <p className="mt-3 text-sm leading-6 text-slate-600">{phase.detail}</p>
-                    </article>
-
                     {index < phases.length - 1 && (
                       <div className="h-px w-24 shrink-0 bg-blue-300" />
                     )}
@@ -109,19 +117,28 @@ export function ProjectArchitecture() {
               </div>
             </div>
           </div>
+
+          <article className={`mt-4 rounded-md border bg-white p-6 shadow-sm ${activePhase.accent}`}>
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-blue-700">Phase {activeIndex + 1}</p>
+                <h3 className="mt-1 text-xl font-semibold text-slate-950">{activePhase.title}</h3>
+              </div>
+              <p className="text-sm font-medium text-slate-500">Hover a node to update this panel</p>
+            </div>
+            <div className="mt-5 grid gap-6 lg:grid-cols-[0.75fr_1.25fr]">
+              <div>
+                <h4 className="text-sm font-semibold text-slate-950">Simple explanation</h4>
+                <p className="mt-2 text-base leading-7 text-slate-700">{activePhase.simple}</p>
+              </div>
+              <div>
+                <h4 className="text-sm font-semibold text-slate-950">Developer explanation</h4>
+                <p className="mt-2 text-sm leading-6 text-slate-600">{activePhase.technical}</p>
+              </div>
+            </div>
+          </article>
         </div>
       )}
     </section>
   );
-}
-
-function panelPlacement(index: number): string {
-  const vertical = index % 2 === 0 ? "bottom-24" : "top-32";
-  if (index === 0) {
-    return `${vertical} left-0`;
-  }
-  if (index === phases.length - 1) {
-    return `${vertical} right-0`;
-  }
-  return `${vertical} left-1/2 -translate-x-1/2`;
 }
